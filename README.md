@@ -79,5 +79,16 @@ This part will handle sending and receiving of all chat messages. When sending o
 * First, implement the UDP message sending and receiving.
 * Second, implement the total ordered multicast protocol with sequencer.
 * Third, implement leader election process
+* 
+We will need a separate custom built UDP library which implements the ordering aspect. This will be the ordered multicast file. So that will be a separate file, sequencer. The sequencer will need to reformat messages with a message order number as well. So any messages sent to the sequencer will need a timestamp while any messages sent out of the sequencer simply need a sequence number. 
+
+
+We will have a client program, which will also implement the leader aspects (as every client in a chat can become a leader; in other words, every leader/sequencer is just a special client). A separate header file will be needed for implementing the election protocol (Bully algorithm). The current leader can be stored on each client as an int, since each process will be given a unique ID on startup.
+
+Every message should receive a response as this is how we will detect crashes. In order to detect failures, each client sends an ACK back to sequencer each time sequencer sends messages. The sequencer sends ACKs to clients that send messages to it. If a client connects to a client that is not the leader, that client will send the details of which process is the current leader, and it’ll attempt to connect there instead.
+
+The sequencer will notify all clients when a new client has connected, allowing them to update a linked list of clients. Each time a client crashes, the sequencer detects this if the client fails to ack. It will send an update to all clients. The sequencer crash is detected also by a failure to ack. An election request is sent to all clients, and they will remove the sequencer from their linked lists. 
+
+Each client will have at least two threads. One thread will listen to messages and create new threads when a message is received. Another thread will be responsible for sending messages. The leader will not spin off threads for group chat messages as we want to handle those sequentially. The leader will create new threads for sending messages to the clients.
 
 ------
