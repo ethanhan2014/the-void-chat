@@ -1,5 +1,5 @@
-dchat: util.o sequencer.o
-	gcc dchat.c sequencer.c util.c -o dchat
+dchat: util.o sequencer.o client.o
+	gcc dchat.c sequencer.c client.c util.c -o dchat -lpthread
 
 # rules to compile the individual .o files
 dchat.o: dchat.c
@@ -11,9 +11,12 @@ util.o: util.c
 sequencer.o: sequencer.c
 	gcc -c -Wall sequencer.c
 
+client.o: client.c
+	gcc -c -Wall client.c -lpthread
+
 # removes .o and executable files
 clean:
-	rm  -f dchat dchat.o util.o
+	rm  -f dchat dchat.o util.o sequencer.o client.o
 
 # removes any temporary (~) files
 cleaner: 

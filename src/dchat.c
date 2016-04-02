@@ -65,52 +65,6 @@ machine_info get_machine_info(char const *name) {
   return mach;
 }
 
-message find_host(char* ip, int port, machine_info mach) {
-  int s; //the socket
-  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-    perror("error making client socket");
-    exit(1);
-  }
-  //give socket a timeout
-  struct timeval thetime;
-  thetime.tv_sec = 1;
-  thetime.tv_usec = 0;
-  if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &thetime, sizeof(thetime)) < 0) {
-    perror("Error setting socket timeout parameter\n");
-  }
-
-  //pack up a lovely join request message
-  message init_conn;
-  msg_header header;
-  header.timestamp = (int)time(0);
-  header.msg_type = JOIN_REQ;
-  header.status = TRUE;
-  header.about = mach;
-  init_conn.header = header;
-
-  //setup host info to connect to/send message to
-  struct sockaddr_in server;
-  server.sin_family = AF_INET;
-  server.sin_addr.s_addr = inet_addr(ip);
-  server.sin_port = htons(port);
-
-  if (sendto(s, &init_conn, sizeof(message), 0, (struct sockaddr *)&server, 
-      (socklen_t)sizeof(struct sockaddr)) < 0) {
-    perror("No chat active at this address, try again later\n");
-    exit(1);
-  }
-
-  message response;
-  if (recvfrom(s, &response, sizeof(message), 0, 0, 0) < 0) {
-    perror("No chat active at this address, try again later");
-    exit(1);
-  }
-
-  close(s);
-
-  return response;
-}
-
 //main loop
 int main(int argc, char const *argv[]) {
   if (argc != 2 && argc != 3) {
@@ -136,12 +90,15 @@ int main(int argc, char const *argv[]) {
 
     printf("%s started a new chat, listening on %s:%d\n", mach.name, 
       mach.ipaddr, mach.portno);
-    run(&mach);
+    sequencer_init(&mach);
   } else {
+    mach.isLeader = FALSE;
+
     //find ip/port of sequencer from given ip/port (if it exists!)
     printf("%s joining a new chat on %s:%d, listening on %s:%d\n", 
       mach.name, ip, port, mach.ipaddr, mach.portno);
-    message response = find_host(ip, port, mach);
+
+    client_start(ip, port, &mach);
   }
   
   return 0;

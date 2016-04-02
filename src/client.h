@@ -1,18 +1,15 @@
 #pragma once
 
-/***
-*
-*    
-*
-*
-***/
+#include <stdio.h>
+#include <stdlib.h>
+#include "util.h"
 
-#include <stdio>
-#include <stdlib>
-
+void client_start(char* ip, int port, machine_info* mach);
+message find_host(char* ip, int port, machine_info* mach);
+void client_loop(char* ip, int port, machine_info* mach);
 
 /*This is a basic API from class notes for client part*/
-
+/*
 int init_process();  //start to listen on random port and ip address
 
 int joinGroup(char *ipaddr, int port);  //send request to join the group
@@ -26,3 +23,4 @@ int sender(message *m);                // unique identifier of the process that 
 int group(message *m);                 // unique identifier of the group which the message m was sent
 
 void print_help();                     //print help information
+*/

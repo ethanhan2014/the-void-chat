@@ -4,15 +4,13 @@
 #define TRUE 1
 #define FALSE 0
 
+//message types
 #define MSG_REQ 3
 #define MSG_RES 4
-
 #define JOIN_REQ 5
 #define JOIN_RES 6
-
 #define ELECTION_REQ 7
 #define ACK 8
-
 #define NEWLEADER 9
 
 typedef struct machine_info {
@@ -37,7 +35,14 @@ typedef struct messages {
   char content[BUFSIZE];  // contains the chatting information 
 } message;
 
-
+//for passing into a thread as a single parameter
+typedef struct thread_params {
+  message* incoming;
+  machine_info* mach;
+  char* host_ip;
+  int host_port;
+  int socket;
+} thread_params;
 
 
 int sendPackets();

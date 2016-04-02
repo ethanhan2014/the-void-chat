@@ -4,4 +4,5 @@
 
 #include "util.h"
 
-void run(machine_info* mach);
+
+void sequencer_init(machine_info* mach);
