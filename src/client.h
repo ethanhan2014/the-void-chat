@@ -27,6 +27,12 @@ void client_loop(machine_info* mach, int s);
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
   int s);
 
+//receives a message on given socket s, stores it in m, and stores sender info
+//in source (make source NULL if you don't care about this info)
+//also updates mach's client list if message came from leader
+void receive_message(int s, message* m, struct sockaddr_in* source, 
+  machine_info* mach);
+
 // *** THREAD FUNCTIONS *** //
 // listens on the provided socket
 void* client_listen(void* input);

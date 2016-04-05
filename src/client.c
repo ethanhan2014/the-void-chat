@@ -100,10 +100,7 @@ message join_request(machine_info* mach) {
   }
 
   message response;
-  if (recvfrom(s, &response, sizeof(message), 0, 0, 0) < 0) {
-    perror("No reply received when trying to connect to server");
-    exit(1);
-  }
+  receive_message(s, &response, NULL, mach);
 
   close(s);
 
@@ -147,10 +144,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
   }
 
   message response;
-  if (recvfrom(s, &response, sizeof(message), 0, 0, 0) < 0) {
-    perror("No reply received when trying to connect to server");
-    exit(1);
-  }
+  receive_message(s, &response, NULL, mach);
 
   close(s);
 
@@ -181,21 +175,28 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
   }
 }
 
+void receive_message(int s, message* m, struct sockaddr_in* source, 
+    machine_info* mach) {
+  socklen_t sourcelen = sizeof(*source);
+  if (recvfrom(s, m, sizeof(message), 0, (struct sockaddr*)source, 
+      &sourcelen) < 0) {
+    perror("Error receiving incoming message as client");
+    exit(1);
+  }
+
+  if (m->header.about.isLeader) {
+    update_clients(mach, m->header.about);
+  }
+}
+
 void* client_listen(void* input) {
   thread_params* params = (thread_params*)input;
 
-  //store info on message source
-  struct sockaddr_in source;
-  socklen_t sourcelen = sizeof(source);
-
-  message incoming;
   int done = FALSE;
   while (!done) {
-    if (recvfrom(params->socket, &incoming, sizeof(message), 0, 
-        (struct sockaddr*)&source, &sourcelen) < 0) {
-      perror("Error listening to incoming messages as client");
-      exit(1);
-    }
+    message incoming;
+    struct sockaddr_in source;
+    receive_message(params->socket, &incoming, &source, params->mach);
 
     parse_incoming_cl(incoming, params->mach, source, params->socket);
   }
