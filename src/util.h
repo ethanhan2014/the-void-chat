@@ -32,9 +32,11 @@ typedef struct machine_info {
   int portno;             // port number
   char name[BUFSIZE];     // member's name
   int isAlive;            // indicate alive or dead
-  int isLeader;           // indicate whether it’s leader
+  int isLeader;           // indicate whether it is leader
   client others[MAX_CHAT_SIZE]; // store other chatter info in here at all times
   int chat_size;          // number of other chatters
+  char host_ip[BUFSIZE];  // current leader's ip
+  int host_port;// current leader's port
 } machine_info;
 typedef struct msg_header {
   int timestamp;          // timestamp of sending out message
@@ -51,8 +53,6 @@ typedef struct messages {
 //for thread parameters
 typedef struct thread_params {
   machine_info* mach; //relevant machine_info
-  char host_ip[BUFSIZE]; //ip address of host/leader
-  int host_port; //port of host/leader
   int socket; //relevant socket
 } thread_params;
 

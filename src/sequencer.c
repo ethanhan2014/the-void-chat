@@ -30,8 +30,6 @@ void sequencer_loop(machine_info* mach, int s) {
   //kick off a thread that is listening in parallel
   thread_params params;
   params.mach = mach;
-  strcpy(params.host_ip, mach->ipaddr);
-  params.host_port = mach->portno;
   params.socket = s;
 
   pthread_t listener_thread;

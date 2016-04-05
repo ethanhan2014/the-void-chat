@@ -11,22 +11,24 @@
 #include "util.h"
 #include "client.h"
 
-void client_start(char* ip, int port, machine_info* mach) {
+void client_start(machine_info* mach) {
   int s = open_socket(mach);
 
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", mach->name, 
-    ip, port, mach->ipaddr, mach->portno);
-  char ip_copy[BUFSIZE]; strcpy(ip_copy, ip); //join_request changes ip
-  message host_attempt = join_request(ip_copy, port, mach);
+    mach->host_ip, mach->host_port, mach->ipaddr, mach->portno);
+  message host_attempt = join_request(mach);
 
   //real host info is in contents of message if we did not contact leader
   if (!host_attempt.header.about.isLeader) {
     char ip_port[BUFSIZE];
     strcpy(ip_port, host_attempt.content);
-    ip = strtok(ip_port, ":");
-    port = strtol(strtok(NULL, " "), 0, 10);
+    char* new_ip = strtok(ip_port, ":");
+    int new_port = strtol(strtok(NULL, " "), 0, 10);
 
-    host_attempt = join_request(ip, port, mach);
+    strcpy(mach->host_ip, new_ip);
+    mach->host_port = new_port;
+
+    host_attempt = join_request(mach);
   }
   update_clients(mach, host_attempt.header.about);
 
@@ -34,17 +36,15 @@ void client_start(char* ip, int port, machine_info* mach) {
   print_users(mach);
 
   //we have leader info inside of host_attempt message now
-  client_loop(ip, port, mach, s);
+  client_loop(mach, s);
 
   close(s);
 }
 
-void client_loop(char* ip, int port, machine_info* mach, int s) {
+void client_loop(machine_info* mach, int s) {
   //kick off a thread that is listening in parallel
   thread_params params;
   params.mach = mach;
-  strcpy(params.host_ip, ip);
-  params.host_port = port;
   params.socket = s;
 
   pthread_t listener_thread;
@@ -58,11 +58,11 @@ void client_loop(char* ip, int port, machine_info* mach, int s) {
   while (!done) {
     char input[BUFSIZE];
     scanf("%s", input);  //get user input (messages)
-    msg_request(ip, port, mach, input); //do nothing with response right now
+    msg_request(mach, input); //do nothing with response right now
   }
 }
 
-message join_request(char* ip, int port, machine_info* mach) {
+message join_request(machine_info* mach) {
   int s; //the socket
   if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("Error making socket to send message");
@@ -86,10 +86,12 @@ message join_request(char* ip, int port, machine_info* mach) {
   init_conn.header = header;
 
   //setup host info to connect to/send message to
+  char ip_copy[BUFSIZE]; //inet_addr changes ip(?)... use a copy of it to avoid
+  strcpy(ip_copy, mach->host_ip); 
   struct sockaddr_in server;
   server.sin_family = AF_INET;
-  server.sin_addr.s_addr = inet_addr(ip);
-  server.sin_port = htons(port);
+  server.sin_addr.s_addr = inet_addr(ip_copy);
+  server.sin_port = htons(mach->host_port);
 
   if (sendto(s, &init_conn, sizeof(message), 0, (struct sockaddr *)&server, 
       (socklen_t)sizeof(struct sockaddr)) < 0) {
@@ -108,7 +110,7 @@ message join_request(char* ip, int port, machine_info* mach) {
   return response;
 }
 
-message msg_request(char* ip, int port, machine_info* mach, char msg[BUFSIZE]) {
+message msg_request(machine_info* mach, char msg[BUFSIZE]) {
   int s; //the socket
   if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("Error making socket to send message");
@@ -135,8 +137,8 @@ message msg_request(char* ip, int port, machine_info* mach, char msg[BUFSIZE]) {
   //setup host info to connect to/send message to
   struct sockaddr_in server;
   server.sin_family = AF_INET;
-  server.sin_addr.s_addr = inet_addr(ip);
-  server.sin_port = htons(port);
+  server.sin_addr.s_addr = inet_addr(mach->host_ip);
+  server.sin_port = htons(mach->host_port);
 
   if (sendto(s, &text_msg, sizeof(message), 0, (struct sockaddr *)&server, 
       (socklen_t)sizeof(struct sockaddr)) < 0) {
@@ -156,7 +158,7 @@ message msg_request(char* ip, int port, machine_info* mach, char msg[BUFSIZE]) {
 }
 
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
-    int s, char* host_ip, int host_port) {
+    int s) {
   if (m.header.msg_type == JOIN_REQ) {
     //pack up a lovely response message
     message respond_join;
@@ -167,7 +169,7 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
     header.about = *mach;
     respond_join.header = header;
 
-    sprintf(respond_join.content, "%s:%d", host_ip, host_port);
+    sprintf(respond_join.content, "%s:%d", mach->host_ip, mach->host_port);
 
     if (sendto(s, &respond_join , sizeof(respond_join), 0, 
         (struct sockaddr*)&source, sizeof(source)) < 0) {
@@ -195,8 +197,7 @@ void* client_listen(void* input) {
       exit(1);
     }
 
-    parse_incoming_cl(incoming, params->mach, source, params->socket, 
-      params->host_ip, params->host_port);
+    parse_incoming_cl(incoming, params->mach, source, params->socket);
   }
 
   pthread_exit(0);

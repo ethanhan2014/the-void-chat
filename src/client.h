@@ -10,22 +10,22 @@
 #include "util.h"
 
 //kicks off client process
-void client_start(char* ip, int port, machine_info* mach);
+void client_start(machine_info* mach);
 
-//sends a join request to the given ip:port
+//sends a join request to the given host ip:port inside of mach
 //returns the response from the server
-message join_request(char* ip, int port, machine_info* mach);
+message join_request(machine_info* mach);
 
-//sends a message (from the user input) to given ip:port
+//sends a message (from the user input) to current leader
 //returns the response from the server
-message msg_request(char* ip, int port, machine_info* mach, char msg[BUFSIZE]);
+message msg_request(machine_info* mach, char msg[BUFSIZE]);
 
-//enters main client loop, given leader ip:port, this machine's info, socket s
-void client_loop(char* ip, int port, machine_info* mach, int s);
+//enters main client loop, given this machine's info, socket s we listen on
+void client_loop(machine_info* mach, int s);
 
 //parse incoming message and perform proper response
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
-  int s, char* host_ip, int host_port);
+  int s);
 
 // *** THREAD FUNCTIONS *** //
 // listens on the provided socket

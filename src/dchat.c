@@ -40,8 +40,10 @@ int main(int argc, char const *argv[]) {
     sequencer_start(&mach);
   } else {
     mach.isLeader = FALSE;
+    strcpy(mach.host_ip, ip);
+    mach.host_port = port;
 
-    client_start(ip, port, &mach);
+    client_start(&mach);
   }
   
   return 0;
