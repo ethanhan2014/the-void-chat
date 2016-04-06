@@ -93,7 +93,7 @@ int open_socket(machine_info* mach) {
   return s;
 }
 
-void add_client_to_clientlist(machine_info* add_to, machine_info add) {
+void add_client(machine_info* add_to, machine_info add) {
   client new;
   strcpy(new.name, add.name);
   strcpy(new.ipaddr, add.ipaddr);
@@ -102,6 +102,25 @@ void add_client_to_clientlist(machine_info* add_to, machine_info add) {
 
   add_to->others[add_to->chat_size] = new;
   add_to->chat_size++;
+}
+
+void remove_client(machine_info* update, machine_info remove) {
+  int i;
+  for (i = 0; i < update->chat_size; i++) {
+    client this = update->others[i];
+
+    if (strcmp(this.name, remove.name) == 0 
+        && strcmp(this.ipaddr, remove.ipaddr) == 0 
+        && this.portno == remove.portno 
+        && this.isLeader == remove.isLeader) {
+      // match found; move all others up by one; for loop exits after this while
+      while (i < update->chat_size) {
+        update->others[i] = update->others[i+1];
+        i++;
+      }
+      update->chat_size--;
+    }
+  }
 }
 
 void update_clients(machine_info* update, machine_info source) {
@@ -122,7 +141,8 @@ void print_message(message m) {
     error("attempt to print a message not from the leader");
   }
 
-  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER) {
+  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER
+      || m.header.msg_type == QUIT) {
     printf("%s\n", m.content);
   } else {
     error("attempt to print a message type that is now allowed");

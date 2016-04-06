@@ -60,6 +60,7 @@ void client_loop(machine_info* mach, int s) {
     if (scanf("%s", input) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
+      quit_notice(mach);
     } else {
       msg_request(mach, input); //do nothing with response right now
     }
@@ -77,7 +78,8 @@ message join_request(machine_info* mach) {
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
   if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-    perror("Error setting socket timeout parameter\n");
+    perror("Error setting socket timeout parameter");
+    exit(1);
   }
 
   //make message to send
@@ -99,12 +101,15 @@ message join_request(machine_info* mach) {
 
   if (sendto(s, &init_conn, sizeof(message), 0, (struct sockaddr *)&server, 
       (socklen_t)sizeof(struct sockaddr)) < 0) {
-    perror("No chat active at this address, try again later\n");
+    perror("No chat active at this address, try again later");
     exit(1);
   }
 
   message response;
-  receive_message(s, &response, NULL, mach);
+  if (receive_message(s, &response, NULL, mach) == FALSE) {
+    perror("No chat active at this address, try again later");
+    exit(1);
+  }
 
   close(s);
 
@@ -122,7 +127,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
   if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-    perror("Error setting socket timeout parameter\n");
+    perror("Error setting socket timeout parameter");
   }
 
   //make message to send
@@ -143,16 +148,56 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
 
   if (sendto(s, &text_msg, sizeof(message), 0, (struct sockaddr *)&server, 
       (socklen_t)sizeof(struct sockaddr)) < 0) {
-    perror("No chat active at this address, try again later\n");
+    perror("No chat active at this address, try again later");
     exit(1);
   }
 
   message response;
-  receive_message(s, &response, NULL, mach);
+  if (receive_message(s, &response, NULL, mach) == FALSE) {
+    perror("No chat active at this address, try again later");
+    exit(1);
+  }
 
   close(s);
 
   return response;
+}
+
+void quit_notice(machine_info* mach) {
+  int s; //the socket
+  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    perror("Error making socket to send message");
+    exit(1);
+  }
+  //give socket a timeout
+  struct timeval timeout;
+  timeout.tv_sec = 1;
+  timeout.tv_usec = 0;
+  if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+    perror("Error setting socket timeout parameter");
+  }
+
+  //make message to send
+  message quit_msg;
+  msg_header header;
+  header.timestamp = (int)time(0);
+  header.msg_type = QUIT;
+  header.status = TRUE;
+  header.about = *mach;
+  quit_msg.header = header;
+
+  //setup host info to connect to/send message to
+  struct sockaddr_in server;
+  server.sin_family = AF_INET;
+  server.sin_addr.s_addr = inet_addr(mach->host_ip);
+  server.sin_port = htons(mach->host_port);
+
+  if (sendto(s, &quit_msg, sizeof(message), 0, (struct sockaddr *)&server, 
+      (socklen_t)sizeof(struct sockaddr)) < 0) {
+    printf("Note: could not send quit message to leader, quitting anyway\n");
+  }
+
+  close(s);
 }
 
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,

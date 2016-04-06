@@ -19,6 +19,7 @@
 #define ACK 8
 #define NEWLEADER 9
 #define NEW_USER 10
+#define QUIT 11
 
 // *** STRUCT FORMATS *** //
 //for messages between machines
@@ -74,14 +75,15 @@ int process_inputs(int argc, char const *argv[], char** ip, int* port);
 //this machine's listener port
 machine_info get_machine_info(char const *name);
 
-//updates add_to's client list by adding a client with add's information
-void add_client_to_clientlist(machine_info* add_to, machine_info add);
-
 //creates and binds a socket on the ip of the provided machine_info struct
 //also updates provided machine_info with the port we assign to
 //socket gets returned as an int 
 int open_socket(machine_info* mach);
 
+//updates add_to's client list by adding a client with add's information
+void add_client(machine_info* add_to, machine_info add);
+//remove the client that corresponds to remove from update's client list
+void remove_client(machine_info* update, machine_info remove);
 //changes update's client list to match source's
 void update_clients(machine_info* update, machine_info source);
 

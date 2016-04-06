@@ -13,7 +13,7 @@
 
 void sequencer_start(machine_info* mach) {
   int s = open_socket(mach); //open socket on desired ip and decide port
-  add_client_to_clientlist(mach, *mach); //adding its self to client list
+  add_client(mach, *mach); //adding its self to client list
 
   printf("%s started a new chat, listening on %s:%d\n", mach->name, 
     mach->ipaddr, mach->portno);
@@ -45,6 +45,8 @@ void sequencer_loop(machine_info* mach, int s) {
     if (scanf("%s", input) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
+
+      //TODO tell other clients to begin leader election
     } else {
       message text_msg; //make a message to send out then call broadcast_message
       msg_header header;
@@ -74,7 +76,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     broadcast_message(join_msg, mach);
 
     //update clientlist
-    add_client_to_clientlist(mach, m.header.about); 
+    add_client(mach, m.header.about); 
 
     //respond to original client
     message response;
@@ -101,8 +103,20 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     text_msg.header.status = TRUE;
     text_msg.header.about = *mach;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
-    //send the msg out to everyone
-    broadcast_message(text_msg, mach);
+    broadcast_message(text_msg, mach); //send the msg out to everyone
+  } else if (m.header.msg_type == QUIT) {
+    //Note no direct response expected for this message from the quitting client
+    //clients will update their client lists upon receiving the message
+    remove_client(mach, m.header.about); //update leader's client list
+
+    message quit_msg;
+    quit_msg.header.timestamp = (int)time(0);
+    quit_msg.header.msg_type = QUIT;
+    quit_msg.header.status = TRUE;
+    quit_msg.header.about = *mach;
+    sprintf(quit_msg.content, "NOTICE %s left the chat or crashed",
+      m.header.about.name);
+    broadcast_message(quit_msg, mach);//send the msg out to everyone
   }
 }
 
@@ -118,7 +132,7 @@ void broadcast_message(message m, machine_info* mach) {
   timeout.tv_sec = 1;
   timeout.tv_usec = 0;
   if (setsockopt(o, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-    perror("Error setting socket timeout parameter\n");
+    perror("Error setting socket timeout parameter");
   }
 
   //setup host info to connect to/send message to
@@ -141,6 +155,8 @@ void broadcast_message(message m, machine_info* mach) {
         perror("Cannot send message to this client");
         exit(1);
       }
+
+      //TODO MAKE CLIENT RESPOND - IF TIMEOUT, IS CLIENT DEAD? etc., send out leave message
     }
   }
 }
