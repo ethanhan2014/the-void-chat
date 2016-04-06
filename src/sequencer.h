@@ -3,6 +3,8 @@
 #include "util.h"
 
 
+linkedList *messagesQueue;
+
 void sequencer_start(machine_info* mach);
 
 //parse incoming message and perform proper response

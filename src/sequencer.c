@@ -14,7 +14,7 @@
 void sequencer_start(machine_info* mach) {
   int s = open_socket(mach); //open socket on desired ip and decide port
   add_client(mach, *mach); //adding its self to client list
-
+  messagesQueue = (linkedList *) malloc(sizeof(linkedList));
   printf("%s started a new chat, listening on %s:%d\n", mach->name, 
     mach->ipaddr, mach->portno);
   printf("Succeded, current users:\n");
@@ -47,6 +47,7 @@ void sequencer_loop(machine_info* mach, int s) {
       done = TRUE;
 
       //TODO tell other clients to begin leader election
+      //do we really want to do this? Shouldn't the clients detect leader failure automatically and begin this on own?
     } else {
       message text_msg; //make a message to send out then call broadcast_message
       msg_header header;
@@ -56,9 +57,18 @@ void sequencer_loop(machine_info* mach, int s) {
       header.about = *mach;
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", mach->name, input);
-
       broadcast_message(text_msg, mach);
     }
+  }
+  //we need to clean up our data structure for messages
+  int i = 0;
+  node *current = messagesQueue->head;
+  for (i = 0; i < messagesQueue->length; i++) {
+    //free each element
+    node *temp = current;
+    current = current->next;
+    //TODO: free internal data structures in each node as needed
+    free(temp);
   }
 }
 

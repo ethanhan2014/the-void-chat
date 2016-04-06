@@ -153,3 +153,74 @@ void error(char* m) {
   printf("Error: %s\n", m);
   exit(1);
 }
+
+int addElement(linkedList *l, int value, char *otherVal, message *m) {
+  //printf("Entering add\n");
+  if (l == NULL) {
+    //printf("List is null, exiting\n");
+    return 1;
+  }
+  //printf("Going into main body\n");
+  node *addNode = (node *)malloc(sizeof(node));
+  addNode->v = value;
+  addNode->value = otherVal;
+  addNode->m = m;
+  if (l->length == 0) {
+    l->head = addNode;
+    l->length++;
+    return 0;
+  }
+  int i = 0;
+  node *current = l->head;
+  for (i = 0; i < l->length - 1; i++) {
+    current = current->next;
+  }
+  current->next = addNode;
+  l->length++;
+  return 0;
+}
+
+int removeElement(linkedList *l, int i) {
+  //printf("Removing\n");
+  if (i >= l->length) {
+    //printf("Invalid index\n");
+    return 1;
+  }
+  if (i == 0) {
+    node *c = l->head;
+    l->head = l->head->next;
+    free(c);
+    l->length--;
+    return 0;
+  }
+  int n = 0;
+  node *current = l->head;
+  for (n = 0; n < i; n++) {
+    current = current->next;
+  }
+  node *removal = current->next;
+  current = current->next->next;
+  free(removal);
+  l->length--;
+  return 0;
+}
+
+node *getElement(linkedList *l, int i) {
+  if (i >= l->length) {
+    return NULL;
+  }
+  //printf("Past the null issue\n");
+  int n = 0;
+  node *current = l->head;
+  //printf("starting search loop\n");
+  for (n = 0; n < i; n++) {
+    current = current->next;
+  }
+  //printf("Found the node\n");
+  node *removal = current;
+  return removal;
+}
+
+node *seeTop(linkedList *l) {
+  return l->head;
+}
