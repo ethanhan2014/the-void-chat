@@ -30,7 +30,9 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
 //receives a message on given socket s, stores it in m, and stores sender info
 //in source (make source NULL if you don't care about this info)
 //also updates mach's client list if message came from leader
-void receive_message(int s, message* m, struct sockaddr_in* source, 
+//returns TRUE if successful in getting message, FALSE on error (socket closed, 
+//for example)
+int receive_message(int s, message* m, struct sockaddr_in* source, 
   machine_info* mach);
 
 // *** THREAD FUNCTIONS *** //

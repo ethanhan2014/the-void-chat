@@ -41,20 +41,22 @@ void sequencer_loop(machine_info* mach, int s) {
   //loop waiting for user input
   int done = FALSE;
   while (!done) {
+    char input[BUFSIZE]; //get user input (messages)
+    if (scanf("%s", input) == EOF) {
+      //on ctrl-d (EOF), kill this program instead of interpreting input
+      done = TRUE;
+    } else {
+      message text_msg; //make a message to send out then call broadcast_message
+      msg_header header;
+      header.timestamp = (int)time(0);
+      header.msg_type = MSG_REQ;
+      header.status = TRUE;
+      header.about = *mach;
+      text_msg.header = header;
+      sprintf(text_msg.content, "%s:: %s", mach->name, input);
 
-    char input[BUFSIZE];
-    scanf("%s", input);  //get user input (messages)
-
-    message text_msg; //make a message to send out then call broadcast_message
-    msg_header header;
-    header.timestamp = (int)time(0);
-    header.msg_type = MSG_REQ;
-    header.status = TRUE;
-    header.about = *mach;
-    text_msg.header = header;
-    sprintf(text_msg.content, "%s:: %s", mach->name, input);
-
-    broadcast_message(text_msg, mach);
+      broadcast_message(text_msg, mach);
+    }
   }
 }
 
@@ -155,11 +157,10 @@ void* sequencer_listen(void* input) {
   while (!done) {
     if (recvfrom(params->socket, &incoming, sizeof(message), 0, 
         (struct sockaddr*)&source, &sourcelen) < 0) {
-      perror("Error listening to incoming messages as client");
-      exit(1);
+      done = TRUE; //socket might get closed by ctrl-d signal; then kill thread
+    } else {
+      parse_incoming_seq(incoming, params->mach, source, params->socket);
     }
-
-    parse_incoming_seq(incoming, params->mach, source, params->socket);
   }
 
   pthread_exit(0);

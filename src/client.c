@@ -56,9 +56,13 @@ void client_loop(machine_info* mach, int s) {
   //loop waiting for user input
   int done = FALSE;
   while (!done) {
-    char input[BUFSIZE];
-    scanf("%s", input);  //get user input (messages)
-    msg_request(mach, input); //do nothing with response right now
+    char input[BUFSIZE]; //get user input (messages)
+    if (scanf("%s", input) == EOF) {
+      //on ctrl-d (EOF), kill this program instead of interpreting input
+      done = TRUE;
+    } else {
+      msg_request(mach, input); //do nothing with response right now
+    }
   }
 }
 
@@ -175,18 +179,19 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
   }
 }
 
-void receive_message(int s, message* m, struct sockaddr_in* source, 
+int receive_message(int s, message* m, struct sockaddr_in* source, 
     machine_info* mach) {
   socklen_t sourcelen = sizeof(*source);
   if (recvfrom(s, m, sizeof(message), 0, (struct sockaddr*)source, 
       &sourcelen) < 0) {
-    perror("Error receiving incoming message as client");
-    exit(1);
+    return FALSE;
   }
 
   if (m->header.about.isLeader) {
     update_clients(mach, m->header.about);
   }
+
+  return TRUE;
 }
 
 void* client_listen(void* input) {
@@ -198,8 +203,11 @@ void* client_listen(void* input) {
     struct sockaddr_in source;
 
     //wait for a message + update clients every time if message from leader
-    receive_message(params->socket, &incoming, &source, params->mach);
-    parse_incoming_cl(incoming, params->mach, source, params->socket); //deal with the message
+    if (receive_message(params->socket, &incoming, &source, params->mach) == FALSE) {
+      done = TRUE; //socket was closed somewhere/became invalid; kill thread
+    } else {
+      parse_incoming_cl(incoming, params->mach, source, params->socket); //deal with the message
+    }
   }
 
   pthread_exit(0);
