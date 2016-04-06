@@ -52,7 +52,7 @@ void sequencer_loop(machine_info* mach, int s) {
     header.status = TRUE;
     header.about = *mach;
     text_msg.header = header;
-    strcpy(text_msg.content, input);
+    sprintf(text_msg.content, "%s:: %s", mach->name, input);
 
     broadcast_message(text_msg, mach);
   }
@@ -61,21 +61,26 @@ void sequencer_loop(machine_info* mach, int s) {
 void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source,
     int s) {
   if (m.header.msg_type == JOIN_REQ) {
-    add_client_to_clientlist(mach, m.header.about);
+    //broadcast a join message to notify all others
+    message join_msg;
+    join_msg.header.timestamp = (int)time(0);
+    join_msg.header.msg_type = NEW_USER;
+    join_msg.header.status = TRUE;
+    join_msg.header.about = *mach;
+    sprintf(join_msg.content, "NOTICE %s joined on %s:%d", 
+      m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
+    broadcast_message(join_msg, mach);
 
+    //update clientlist
+    add_client_to_clientlist(mach, m.header.about); 
+
+    //respond to original client
     message response;
-    msg_header header;
-    header.timestamp = (int)time(0);
-    header.msg_type = JOIN_RES;
-    header.status = TRUE;
-    header.about = *mach;
-    response.header = header;
-
-    if (sendto(s, &response , sizeof(response), 0, 
-        (struct sockaddr*)&source, sizeof(source)) < 0) {
-      perror("Error responding to message");
-      exit(1);
-    }
+    response.header.timestamp = (int)time(0);
+    response.header.msg_type = JOIN_RES;
+    response.header.status = TRUE;
+    response.header.about = *mach;
+    respond_to(s, &response, source);
   } else if (m.header.msg_type == MSG_REQ) {
     //respond to the original message
     message response;
@@ -85,15 +90,17 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     header.status = TRUE;
     header.about = *mach;
     response.header = header;
+    respond_to(s, &response, source);
 
-    if (sendto(s, &response , sizeof(response), 0, 
-        (struct sockaddr*)&source, sizeof(source)) < 0) {
-      perror("Error responding to message");
-      exit(1);
-    }
-
-    //send this out to everyone
-    broadcast_message(m, mach);
+    //format msg to send out
+    message text_msg;
+    text_msg.header.timestamp = (int)time(0);
+    text_msg.header.msg_type = MSG_REQ;
+    text_msg.header.status = TRUE;
+    text_msg.header.about = *mach;
+    sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
+    //send the msg out to everyone
+    broadcast_message(text_msg, mach);
   }
 }
 
@@ -112,16 +119,6 @@ void broadcast_message(message m, machine_info* mach) {
     perror("Error setting socket timeout parameter\n");
   }
 
-  //make message to send
-  message text_msg;
-  msg_header header;
-  header.timestamp = (int)time(0);
-  header.msg_type = MSG_REQ;
-  header.status = TRUE;
-  header.about = *mach;
-  text_msg.header = header;
-  sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
-
   //setup host info to connect to/send message to
   struct sockaddr_in server;
   server.sin_family = AF_INET;
@@ -132,14 +129,14 @@ void broadcast_message(message m, machine_info* mach) {
 
     //might be yourself; just print it then
     if (this.isLeader) {
-      printf("%s\n", text_msg.content);
+      print_message(m);
     } else {
       server.sin_addr.s_addr = inet_addr(this.ipaddr);
       server.sin_port = htons(this.portno);
 
-      if (sendto(o, &text_msg, sizeof(message), 0, (struct sockaddr *)&server, 
+      if (sendto(o, &m, sizeof(message), 0, (struct sockaddr *)&server, 
           (socklen_t)sizeof(struct sockaddr)) < 0) {
-        perror("No chat active at this address, try again later\n");
+        perror("Cannot send message to this client");
         exit(1);
       }
     }

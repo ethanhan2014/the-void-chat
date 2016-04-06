@@ -18,6 +18,7 @@
 #define ELECTION_REQ 7
 #define ACK 8
 #define NEWLEADER 9
+#define NEW_USER 10
 
 // *** STRUCT FORMATS *** //
 //for messages between machines
@@ -84,7 +85,16 @@ int open_socket(machine_info* mach);
 //changes update's client list to match source's
 void update_clients(machine_info* update, machine_info source);
 
+//respond to a message with socket s, sending message m, to ip:port in source
+//note that we consider this a response, so NO response is expected in return
+void respond_to(int s, message* m, struct sockaddr_in source);
 
-int sendPackets();
-int receivePackets();
-void error(char *msg);
+//provided m is a type of message that should be printed by the machine,
+//prints the appropriate message based on that type
+//Note that this only prints messages from leaders; produces an error otherwise
+void print_message(message m);
+
+//prints the given message as an error and exits the program
+//always uses error code 1 to exit
+//use when perror not useful
+void error(char* m);

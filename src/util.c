@@ -108,3 +108,28 @@ void update_clients(machine_info* update, machine_info source) {
   memcpy(&(update->others), source.others, MAX_CHAT_SIZE * sizeof(client));
   update->chat_size = source.chat_size;
 }
+
+void respond_to(int s, message* m, struct sockaddr_in source) {
+  if (sendto(s, m, sizeof(message), 0, (struct sockaddr*)&source,
+      sizeof(source)) < 0) {
+    perror("Error responding to message");
+    exit(1);
+  }
+}
+
+void print_message(message m) {
+  if (!m.header.about.isLeader) {
+    error("attempt to print a message not from the leader");
+  }
+
+  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER) {
+    printf("%s\n", m.content);
+  } else {
+    error("attempt to print a message type that is now allowed");
+  }
+}
+
+void error(char* m) {
+  printf("Error: %s\n", m);
+  exit(1);
+}

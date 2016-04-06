@@ -23,7 +23,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]);
 //enters main client loop, given this machine's info, socket s we listen on
 void client_loop(machine_info* mach, int s);
 
-//parse incoming message and perform proper response
+//parse given message and perform proper response
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
   int s);
 

@@ -15,6 +15,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
 void sequencer_loop(machine_info* mach, int s);
 
 //send out message m to all clients in the master (leader's) client list
+//(assumes mach is a leader)
 void broadcast_message(message m, machine_info* mach);
 
 // *** THREAD FUNCTIONS *** //

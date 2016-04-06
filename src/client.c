@@ -170,8 +170,8 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
       perror("Error responding to client with host info");
       exit(1);
     }
-  } else if (m.header.msg_type == MSG_REQ) {
-    printf("%s\n", m.content);
+  } else {
+    print_message(m);
   }
 }
 
@@ -196,9 +196,10 @@ void* client_listen(void* input) {
   while (!done) {
     message incoming;
     struct sockaddr_in source;
-    receive_message(params->socket, &incoming, &source, params->mach);
 
-    parse_incoming_cl(incoming, params->mach, source, params->socket);
+    //wait for a message + update clients every time if message from leader
+    receive_message(params->socket, &incoming, &source, params->mach);
+    parse_incoming_cl(incoming, params->mach, source, params->socket); //deal with the message
   }
 
   pthread_exit(0);
