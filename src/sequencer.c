@@ -15,6 +15,7 @@ void sequencer_start(machine_info* mach) {
   int s = open_socket(mach); //open socket on desired ip and decide port
   add_client(mach, *mach); //adding its self to client list
   messagesQueue = (linkedList *) malloc(sizeof(linkedList));
+  currentSequenceNum = 0;
   printf("%s started a new chat, listening on %s:%d\n", mach->name, 
     mach->ipaddr, mach->portno);
   printf("Succeded, current users:\n");
@@ -57,8 +58,27 @@ void sequencer_loop(machine_info* mach, int s) {
       header.about = *mach;
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", mach->name, input);
-      broadcast_message(text_msg, mach);
+      //broadcast_message(text_msg, mach);
+      //printf("Adding to message queue\n");
+      addElement(messagesQueue, currentSequenceNum, NULL, &text_msg);
+      currentSequenceNum++;
     }
+    int i = 0;
+    //printf("Broadcasting messages\n");
+    for (i = 0; i < messagesQueue->length; i++) {
+      broadcast_message(*(getElement(messagesQueue, i)->m), mach);
+    }
+    // node *current = messagesQueue->head;
+    // printf("Cleaning up the message queue\n");
+    // for (i = 0; i < messagesQueue->length; i++) {
+    //   //free each element
+    //   printf("Freeing a node\n");
+    //   node *temp = current;
+    //   current = current->next;
+    //   //TODO: free internal data structures in each node as needed
+    //   free(temp);
+    // }
+    // messagesQueue->length = 0;
   }
   //we need to clean up our data structure for messages
   int i = 0;
@@ -113,7 +133,9 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     text_msg.header.status = TRUE;
     text_msg.header.about = *mach;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
-    broadcast_message(text_msg, mach); //send the msg out to everyone
+    //broadcast_message(text_msg, mach); //send the msg out to everyone
+    addElement(messagesQueue, currentSequenceNum, NULL, &text_msg);
+    currentSequenceNum++;
   } else if (m.header.msg_type == QUIT) {
     //Note no direct response expected for this message from the quitting client
     //clients will update their client lists upon receiving the message
