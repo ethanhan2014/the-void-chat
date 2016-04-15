@@ -154,7 +154,7 @@ void error(char* m) {
   exit(1);
 }
 
-int addElement(linkedList *l, int value, char *otherVal, message *m) {
+int addElement(linkedList *l, int value, char *otherVal, message  m) {
   //printf("Entering add\n");
   if (l == NULL) {
     //printf("List is null, exiting\n");

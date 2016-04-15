@@ -108,7 +108,7 @@ typedef struct node {
   struct node *next;
   int v;
   char *value;
-  message *m;
+  message m;
 } node;
 
 
@@ -120,7 +120,7 @@ typedef struct linkedList {
 
 //this will add an element to the list
 //this function always adds elements to the end of the list
-int addElement(linkedList *l, int value, char *otherVal, message *m);
+int addElement(linkedList *l, int value, char *otherVal, message m);
 
 //this function will remove an element from the list at index i
 //although this function should in theory work, I never did quite end up using it in my last project lol

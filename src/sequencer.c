@@ -15,7 +15,9 @@ void sequencer_start(machine_info* mach) {
   int s = open_socket(mach); //open socket on desired ip and decide port
   add_client(mach, *mach); //adding its self to client list
   messagesQueue = (linkedList *) malloc(sizeof(linkedList));
+  messagesQueue->length = 0;
   currentSequenceNum = 0;
+  currentPlaceInQueue = 0;
   printf("%s started a new chat, listening on %s:%d\n", mach->name, 
     mach->ipaddr, mach->portno);
   printf("Succeded, current users:\n");
@@ -39,10 +41,17 @@ void sequencer_loop(machine_info* mach, int s) {
     exit(1);
   }
 
+  pthread_t sender_thread;
+  if (pthread_create(&sender_thread, NULL, sequencer_send_queue, &params)) {
+    perror("Error making thread to send shit! We're screwed!");
+    exit(1);
+  }
+
   //loop waiting for user input
   int done = FALSE;
   while (!done) {
     char input[BUFSIZE]; //get user input (messages)
+    printf("Waiting for input\n");
     if (scanf("%s", input) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
@@ -59,14 +68,9 @@ void sequencer_loop(machine_info* mach, int s) {
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", mach->name, input);
       //broadcast_message(text_msg, mach);
-      //printf("Adding to message queue\n");
-      addElement(messagesQueue, currentSequenceNum, NULL, &text_msg);
+      printf("Adding to message queue\n");
+      addElement(messagesQueue, currentSequenceNum, "", text_msg);
       currentSequenceNum++;
-    }
-    int i = 0;
-    //printf("Broadcasting messages\n");
-    for (i = 0; i < messagesQueue->length; i++) {
-      broadcast_message(*(getElement(messagesQueue, i)->m), mach);
     }
     // node *current = messagesQueue->head;
     // printf("Cleaning up the message queue\n");
@@ -134,7 +138,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     text_msg.header.about = *mach;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
     //broadcast_message(text_msg, mach); //send the msg out to everyone
-    addElement(messagesQueue, currentSequenceNum, NULL, &text_msg);
+    addElement(messagesQueue, currentSequenceNum, "", text_msg);
     currentSequenceNum++;
   } else if (m.header.msg_type == QUIT) {
     //Note no direct response expected for this message from the quitting client
@@ -211,5 +215,23 @@ void* sequencer_listen(void* input) {
     }
   }
 
+  pthread_exit(0);
+}
+
+void* sequencer_send_queue(void* input) {
+  thread_params* params = (thread_params*)input;
+
+  int done = FALSE;
+
+  while (!done) {
+
+   //printf("Current messages in queue: %d\n", messagesQueue->length);
+   int i = 0;
+   //printf("Broadcasting messages\n");
+   for (i = currentPlaceInQueue; i < messagesQueue->length; i++) {
+     broadcast_message(getElement(messagesQueue, i)->m, params->mach);
+   }
+   currentPlaceInQueue = i;
+ }
   pthread_exit(0);
 }

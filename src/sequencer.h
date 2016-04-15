@@ -5,6 +5,7 @@
 
 linkedList *messagesQueue;
 int currentSequenceNum;
+int currentPlaceInQueue;
 
 void sequencer_start(machine_info* mach);
 
@@ -22,3 +23,5 @@ void broadcast_message(message m, machine_info* mach);
 // *** THREAD FUNCTIONS *** //
 // listens on the provided socket
 void* sequencer_listen(void* input);
+
+void* sequencer_send_queue(void* input);
