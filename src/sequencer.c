@@ -117,6 +117,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     response.header.timestamp = (int)time(0);
     response.header.msg_type = JOIN_RES;
     response.header.status = TRUE;
+    mach->current_sequence_num = currentSequenceNum;
     response.header.about = *mach;
     respond_to(s, &response, source);
   } else if (m.header.msg_type == MSG_REQ) {
@@ -140,6 +141,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     //broadcast_message(text_msg, mach); //send the msg out to everyone
     addElement(messagesQueue, currentSequenceNum, "", text_msg);
     currentSequenceNum++;
+    printf("We are currently on sequence number: %d\n", currentSequenceNum);
   } else if (m.header.msg_type == QUIT) {
     //Note no direct response expected for this message from the quitting client
     //clients will update their client lists upon receiving the message
@@ -229,6 +231,8 @@ void* sequencer_send_queue(void* input) {
    int i = 0;
    //printf("Broadcasting messages\n");
    for (i = currentPlaceInQueue; i < messagesQueue->length; i++) {
+     node *c = getElement(messagesQueue, i);
+     c->m.header.seq_num = c->v;
      broadcast_message(getElement(messagesQueue, i)->m, params->mach);
    }
    currentPlaceInQueue = i;

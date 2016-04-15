@@ -11,6 +11,11 @@
 
 #include "util.h"
 
+linkedList *messageQueue;
+linkedList *tempBuff;
+int latestSequenceNum;
+node *nextInSeq;
+
 //kicks off client process
 void client_start(machine_info* mach);
 
@@ -44,6 +49,8 @@ int receive_message(int s, message* m, struct sockaddr_in* source,
 // *** THREAD FUNCTIONS *** //
 // listens on the provided socket
 void* client_listen(void* input);
+
+void* sortAndPrint();
 
 
 /*This is a basic API from class notes for client part*/

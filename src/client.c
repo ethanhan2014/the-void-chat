@@ -13,7 +13,10 @@
 
 void client_start(machine_info* mach) {
   int s = open_socket(mach);
-
+  messageQueue = (linkedList *) malloc(sizeof(linkedList));
+  messageQueue->length = 0;
+  tempBuff = (linkedList *) malloc(sizeof(linkedList));
+  tempBuff->length = 0;
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", mach->name, 
     mach->host_ip, mach->host_port, mach->ipaddr, mach->portno);
   message host_attempt = join_request(mach);
@@ -30,11 +33,12 @@ void client_start(machine_info* mach) {
 
     host_attempt = join_request(mach);
   }
+  latestSequenceNum = host_attempt.header.about.current_sequence_num - 1;
   update_clients(mach, host_attempt.header.about);
 
   printf("Succeeded, current users:\n");
   print_users(mach);
-
+  printf("Current sequence number received: %d\n", latestSequenceNum);
   //we have leader info inside of host_attempt message now
   client_loop(mach, s);
 
@@ -50,6 +54,12 @@ void client_loop(machine_info* mach, int s) {
   pthread_t listener_thread;
   if (pthread_create(&listener_thread, NULL, client_listen, &params)) {
     perror("Error making thread to parse incoming message");
+    exit(1);
+  }
+
+  pthread_t printer_thread;
+  if (pthread_create(&printer_thread, NULL, sortAndPrint, NULL)) {
+    perror("Oh no! We don't have a printer thread! We're screwed!");
     exit(1);
   }
 
@@ -220,7 +230,10 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
       exit(1);
     }
   } else {
-    print_message(m);
+    //well we don't want to print just yet now do we cutie pie?
+    //print_message(m);
+    //let's add this to a temp buff and sort it somewhere else
+    addElement(tempBuff, m.header.seq_num, "", m);
   }
 }
 
@@ -255,5 +268,32 @@ void* client_listen(void* input) {
     }
   }
 
+  pthread_exit(0);
+}
+
+void* sortAndPrint() {
+  int done = FALSE;
+
+  while (!done) {
+    //we simply find the next one in the sequence if we can
+    //otherwise, we hold
+    int i = 0;
+    int found = FALSE;
+    for (i = 0; i < tempBuff->length; i++) {
+      if (getElement(tempBuff, i)->v == latestSequenceNum + 1) {
+        found = TRUE;
+        break;
+      }
+    }
+    //we found the message
+    //rejoice!
+    if (found) {
+      print_message(getElement(tempBuff, i)->m);
+      latestSequenceNum++;
+    }
+    else { //well, we didn't find it, so we gotta wait a little it looks like, or something
+
+    }
+  }
   pthread_exit(0);
 }

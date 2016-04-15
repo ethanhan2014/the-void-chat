@@ -60,6 +60,7 @@ machine_info get_machine_info(char const *name) {
   mach.isAlive = TRUE;
   mach.isLeader = FALSE; //(for now)
   mach.chat_size = 0;
+  mach.current_sequence_num = 0; //(for now)
 
   return mach;
 }
@@ -154,7 +155,7 @@ void error(char* m) {
   exit(1);
 }
 
-int addElement(linkedList *l, int value, char *otherVal, message  m) {
+int addElement(linkedList *l, int value, char *otherVal, message m) {
   //printf("Entering add\n");
   if (l == NULL) {
     //printf("List is null, exiting\n");
