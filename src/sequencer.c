@@ -69,7 +69,14 @@ void sequencer_loop(machine_info* mach, int s) {
       sprintf(text_msg.content, "%s:: %s", mach->name, input);
       //broadcast_message(text_msg, mach);
       printf("Adding to message queue\n");
-      addElement(messagesQueue, currentSequenceNum, "", text_msg);
+      if (input[0] == '0') {
+        printf("Special character detected\n");
+        addElement(messagesQueue, currentSequenceNum, "YES", text_msg);
+      }
+      else {
+        printf("No special character\n");
+        addElement(messagesQueue, currentSequenceNum, "NO", text_msg);
+      }
       currentSequenceNum++;
     }
     // node *current = messagesQueue->head;
@@ -139,7 +146,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     text_msg.header.about = *mach;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
     //broadcast_message(text_msg, mach); //send the msg out to everyone
-    addElement(messagesQueue, currentSequenceNum, "", text_msg);
+    addElement(messagesQueue, currentSequenceNum, "NO", text_msg);
     currentSequenceNum++;
     printf("We are currently on sequence number: %d\n", currentSequenceNum);
   } else if (m.header.msg_type == QUIT) {
@@ -195,6 +202,28 @@ void broadcast_message(message m, machine_info* mach) {
       }
 
       //TODO MAKE CLIENT RESPOND - IF TIMEOUT, IS CLIENT DEAD? etc., send out leave message
+      //how do we do this tho?
+      //should we wait some amount of time and block? Doesn't that defeat the purpose of the program?
+      message reply;
+      socklen_t server_len = sizeof(server);
+      int n = 0;
+      for (n = 0; n < 3; n++) {
+        if (recvfrom(o, &reply, sizeof(message), 0, (struct sockaddr*)&server, &server_len) < 0) {
+          printf("Failed to get response\n");
+          if (sendto(o, &m, sizeof(message), 0, (struct sockaddr *)&server, 
+          (socklen_t)sizeof(struct sockaddr)) < 0) {
+           perror("Cannot send message to this client");
+           exit(1);
+      }
+        }
+        else {
+          if(reply.header.msg_type == ACK) {
+            printf("It's an ack alright\n");
+          }
+          printf("Got response\n");
+          break;
+        }
+      }
     }
   }
 }
@@ -233,7 +262,9 @@ void* sequencer_send_queue(void* input) {
    for (i = currentPlaceInQueue; i < messagesQueue->length; i++) {
      node *c = getElement(messagesQueue, i);
      c->m.header.seq_num = c->v;
-     broadcast_message(getElement(messagesQueue, i)->m, params->mach);
+     //if (c->value[0] != 'Y') {
+       broadcast_message(getElement(messagesQueue, i)->m, params->mach);
+     //}
    }
    currentPlaceInQueue = i;
  }

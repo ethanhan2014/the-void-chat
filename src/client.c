@@ -234,6 +234,19 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
     //print_message(m);
     //let's add this to a temp buff and sort it somewhere else
     addElement(tempBuff, m.header.seq_num, "", m);
+    //let's also ack the message and let the sequencer know that this thang was received
+    message ack;
+    msg_header header;
+    header.timestamp = (int)time(0);
+    header.msg_type = ACK;
+    header.status = TRUE;
+    header.about = *mach;
+    ack.header = header;
+    if (sendto(s, &ack , sizeof(ack), 0, 
+        (struct sockaddr*)&source, sizeof(source)) < 0) {
+      perror("Error with acking the sequencer. That's an issue bro");
+      exit(1);
+    }
   }
 }
 
@@ -288,11 +301,12 @@ void* sortAndPrint() {
     //we found the message
     //rejoice!
     if (found) {
+      printf("Printing message with sequence num: %d\n", getElement(tempBuff, i)->v);
       print_message(getElement(tempBuff, i)->m);
       latestSequenceNum++;
     }
     else { //well, we didn't find it, so we gotta wait a little it looks like, or something
-
+      //printf("Message missing\n");
     }
   }
   pthread_exit(0);

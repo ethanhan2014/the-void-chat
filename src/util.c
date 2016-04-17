@@ -146,7 +146,7 @@ void print_message(message m) {
       || m.header.msg_type == QUIT) {
     printf("%s\n", m.content);
   } else {
-    error("attempt to print a message type that is now allowed");
+    error("attempt to print a message type that is not allowed");
   }
 }
 
