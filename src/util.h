@@ -23,17 +23,23 @@
 
 // *** STRUCT FORMATS *** //
 //for messages between machines
+
 typedef struct client {
   char name[BUFSIZE];
   char ipaddr[BUFSIZE];
   int portno;
   int isLeader;
+
+  int recv_count; //used for heartbeat count
+  int send_count; //used for heartbeat count
+
 } client;
+
+
 typedef struct machine_info {
   char ipaddr[BUFSIZE];   // ip address of member
   int portno;             // port number
   char name[BUFSIZE];     // member's name
-  int isAlive;            // indicate alive or dead
   int isLeader;           // indicate whether it is leader
   client others[MAX_CHAT_SIZE]; // store other chatter info in here at all times
   int chat_size;          // number of other chatters
@@ -41,6 +47,8 @@ typedef struct machine_info {
   int host_port;// current leader's port
   int current_sequence_num;
 } machine_info;
+
+
 typedef struct msg_header {
   int timestamp;          // timestamp of sending out message
   int seq_num;            // sequence number proposed by sender
@@ -48,6 +56,7 @@ typedef struct msg_header {
   int status;             //indicate whether it's ready to be delivered
   machine_info about;     // information about sender machine
 } msg_header;
+
 typedef struct messages {
   msg_header header;      //header information contains information about individual machine
   char content[BUFSIZE];  // contains the chatting information 
@@ -57,6 +66,7 @@ typedef struct messages {
 typedef struct thread_params {
   machine_info* mach; //relevant machine_info
   int socket; //relevant socket
+  int sock_hb;
 } thread_params;
 
 
@@ -134,3 +144,6 @@ node *getElement(linkedList *l, int i);
 
 //this will return teh first element of the list
 node *seeTop(linkedList *l);
+
+/* wait for certain seconds*/
+void waitFor (unsigned int secs);

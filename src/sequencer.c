@@ -13,6 +13,21 @@
 
 void sequencer_start(machine_info* mach) {
   int s = open_socket(mach); //open socket on desired ip and decide port
+
+  /* ************************************* */
+  /* ******create heartbeat socket ******* */
+  int hb = socket(AF_INET, SOCK_DGRAM, 0);
+  struct sockaddr_in hb_receiver;
+  bzero((char *) &hb_receiver, sizeof(hb_receiver));
+  hb_receiver.sin_family = AF_INET;
+  hb_receiver.sin_addr.s_addr = inet_addr(mach->ipaddr);
+  hb_receiver.sin_port = mach->portno-1; //assigns to random open port
+  if (bind(hb, (struct sockaddr*) &hb_receiver, sizeof(hb_receiver)) < 0) {
+    perror("Error binding listener socket");
+    exit(1);
+  }
+  /* ************************************* */
+
   add_client(mach, *mach); //adding its self to client list
   messagesQueue = (linkedList *) malloc(sizeof(linkedList));
   messagesQueue->length = 0;
@@ -24,16 +39,17 @@ void sequencer_start(machine_info* mach) {
   print_users(mach);
   printf("Waiting for other users to join...\n");
 
-  sequencer_loop(mach, s);
+  sequencer_loop(mach, s, hb);
   
   close(s);
 }
 
-void sequencer_loop(machine_info* mach, int s) {
+void sequencer_loop(machine_info* mach, int s, int hb) {
   //kick off a thread that is listening in parallel
   thread_params params;
   params.mach = mach;
   params.socket = s;
+  params.sock_hb = hb;
 
   pthread_t listener_thread;
   if (pthread_create(&listener_thread, NULL, sequencer_listen, &params)) {
@@ -43,6 +59,18 @@ void sequencer_loop(machine_info* mach, int s) {
 
   pthread_t sender_thread;
   if (pthread_create(&sender_thread, NULL, sequencer_send_queue, &params)) {
+    perror("Error making thread to send shit! We're screwed!");
+    exit(1);
+  }
+
+  pthread_t hb_sender_thread;
+  if (pthread_create(&hb_sender_thread, NULL, send_hb, &params)) {
+    perror("Error making thread to send shit! We're screwed!");
+    exit(1);
+  }
+
+  pthread_t hb_receiver_thread;
+  if (pthread_create(&hb_receiver_thread, NULL, recv_hb, &params)) {
     perror("Error making thread to send shit! We're screwed!");
     exit(1);
   }
@@ -204,6 +232,14 @@ void broadcast_message(message m, machine_info* mach) {
       //TODO MAKE CLIENT RESPOND - IF TIMEOUT, IS CLIENT DEAD? etc., send out leave message
       //how do we do this tho?
       //should we wait some amount of time and block? Doesn't that defeat the purpose of the program?
+
+      /* ****************************************************
+      * If sequencer don't receive the ack message, 
+      * recvfrom() will block the thread until it receive it
+      *     ????? 
+      * *****************************************************/
+
+
       message reply;
       socklen_t server_len = sizeof(server);
       int n = 0;
@@ -268,5 +304,100 @@ void* sequencer_send_queue(void* input) {
    }
    currentPlaceInQueue = i;
  }
+  pthread_exit(0);
+}
+
+void* send_hb(void *param)
+{
+  thread_params* params = (thread_params*)param;
+
+  machine_info *mach = params->mach;
+
+  message *hb = (message *)malloc(sizeof(message));
+
+  hb->header.msg_type = ACK;
+  hb->header.about = *mach;
+
+  struct sockaddr_in hb_sender_addr;
+  int hb_sender_len;
+
+  while(1)
+  {
+    /*loop thru all member machines*/
+    int i;
+    for(i = 0; i < mach->chat_size; i++)
+    {
+      client this = mach->others[i];
+      if(!this.isLeader)
+      { 
+
+        bzero((char *) &hb_sender_addr, sizeof(hb_sender_addr));
+        hb_sender_addr.sin_family = AF_INET;
+        hb_sender_addr.sin_addr.s_addr = inet_addr(this.ipaddr);
+
+        /* *******************************************
+        *
+        *  We assume that every heartbeat port is message portno-1;
+        *
+        *  ********************************************/
+
+        hb_sender_addr.sin_port = htons(this.portno-1);
+
+        hb_sender_len = sizeof(hb_sender_addr);
+
+        if (sendto(params->sock_hb, hb, sizeof(*hb), 0, (struct sockaddr *)&hb_sender_addr, 
+          hb_sender_len) < 0) {
+          error("Cannot send message to this client");
+        }
+
+        this.send_count++;
+
+        if(this.send_count - this.recv_count > 2)
+        {
+          /*claim this member is dead*/
+          //remove the member
+          //send out message to update alive members' group list
+
+          printf("we notice %s quitted or crashed\n", this.name);
+        }
+      }
+    }
+    waitFor(3); //every 3 second sending out heartbeat messages 
+  }
+  
+  pthread_exit(0);
+}
+
+void* recv_hb(void *param)
+{
+  thread_params* params = (thread_params*)param;
+
+  machine_info *mach = params->mach;
+  message *hb = (message *)malloc(sizeof(message));
+  struct sockaddr_in hb_sender_addr;
+  int hb_sender_len;
+  while(1)
+  {
+
+    if(recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
+        (struct sockaddr*)&hb_sender_addr, (unsigned int *)&hb_sender_len) < 0) 
+    {
+      error("Cannot receive message");
+    }
+
+    int i;
+    for(i=0; i<mach->chat_size; i++)
+    {
+      client this = mach->others[i];
+      if(this.portno == hb->header.about.portno 
+        && strcmp(this.ipaddr,hb->header.about.ipaddr)==0)
+      {
+        this.recv_count = this.send_count;
+        break;
+      }
+    }
+
+  }
+
   pthread_exit(0);
 }

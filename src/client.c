@@ -13,6 +13,21 @@
 
 void client_start(machine_info* mach) {
   int s = open_socket(mach);
+
+  /* ************************************* */
+  /* ******create heartbeat socket ******* */
+  int hb = socket(AF_INET, SOCK_DGRAM, 0);
+  struct sockaddr_in hb_receiver;
+  bzero((char *) &hb_receiver, sizeof(hb_receiver));
+  hb_receiver.sin_family = AF_INET;
+  hb_receiver.sin_addr.s_addr = inet_addr(mach->ipaddr);
+  hb_receiver.sin_port = mach->portno-1; //assigns to random open port
+  if (bind(hb, (struct sockaddr*) &hb_receiver, sizeof(hb_receiver)) < 0) {
+    perror("Error binding listener socket");
+    exit(1);
+  }
+  /* ************************************* */
+
   messageQueue = (linkedList *) malloc(sizeof(linkedList));
   messageQueue->length = 0;
   tempBuff = (linkedList *) malloc(sizeof(linkedList));
@@ -40,12 +55,12 @@ void client_start(machine_info* mach) {
   print_users(mach);
   printf("Current sequence number received: %d\n", latestSequenceNum);
   //we have leader info inside of host_attempt message now
-  client_loop(mach, s);
+  client_loop(mach, s, hb);
 
   close(s);
 }
 
-void client_loop(machine_info* mach, int s) {
+void client_loop(machine_info* mach, int s, int hb) {
   //kick off a thread that is listening in parallel
   thread_params params;
   params.mach = mach;
@@ -62,6 +77,18 @@ void client_loop(machine_info* mach, int s) {
     perror("Oh no! We don't have a printer thread! We're screwed!");
     exit(1);
   }
+
+  pthread_t hb_receiver;
+  if (pthread_create(&hb_receiver, NULL, recv_clnt_hb, &params)) {
+    perror("Oh no! We don't have a printer thread! We're screwed!");
+    exit(1);
+  }
+
+  // pthread_t hb_checker;
+  // if (pthread_create(&printer_thread, NULL, sortAndPrint, NULL)) {
+  //   perror("Oh no! We don't have a printer thread! We're screwed!");
+  //   exit(1);
+  // }
 
   //loop waiting for user input
   int done = FALSE;
@@ -310,4 +337,32 @@ void* sortAndPrint() {
     }
   }
   pthread_exit(0);
+}
+
+void *recv_clnt_hb(void *param)
+{
+  thread_params* params = (thread_params*)param;
+  message *hb = (message *)malloc(sizeof(message));
+
+  struct sockaddr_in hb_sender_addr;
+  int hb_sender_len;
+
+  hb_sender_len = sizeof(hb_sender_addr);
+
+  while(1)
+  {
+    if(recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
+        (struct sockaddr*)&hb_sender_addr, (unsigned int *)&hb_sender_len) < 0) 
+    {
+      error("Cannot receive message");
+    }
+
+    hb->header.about = *params->mach;
+
+    if (sendto(params->sock_hb, hb, sizeof(*hb), 0, (struct sockaddr *)&hb_sender_addr, 
+          hb_sender_len) < 0) 
+    {
+          error("Cannot send message to this client");
+      }
+  }
 }

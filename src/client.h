@@ -32,7 +32,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]);
 void quit_notice(machine_info* mach);
 
 //enters main client loop, given this machine's info, socket s we listen on
-void client_loop(machine_info* mach, int s);
+void client_loop(machine_info* mach, int s, int hb);
 
 //parse given message and perform proper response
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
@@ -52,20 +52,4 @@ void* client_listen(void* input);
 
 void* sortAndPrint();
 
-
-/*This is a basic API from class notes for client part*/
-/*
-int init_process();  //start to listen on random port and ip address
-
-int joinGroup(char *ipaddr, int port);  //send request to join the group
-
-int multicast(message *m, group g);    // send the message to all members of group g
- 
-int deliver(message *m);               // delivers the message to the recipient process
- 
-int sender(message *m);                // unique identifier of the process that send the message
-
-int group(message *m);                 // unique identifier of the group which the message m was sent
-
-void print_help();                     //print help information
-*/
+void *recv_clnt_hb(void *param);

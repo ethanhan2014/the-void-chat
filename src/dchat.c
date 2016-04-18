@@ -12,6 +12,7 @@
 
 #include "util.h"
 #include "sequencer.h"
+#include "client.h"
 
 //main loop
 int main(int argc, char const *argv[]) {

@@ -5,6 +5,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <ifaddrs.h>
+#include <sys/time.h>
 
 #include "util.h"
 
@@ -57,7 +58,6 @@ machine_info get_machine_info(char const *name) {
 
   //give other info
   strcpy(mach.name, name);
-  mach.isAlive = TRUE;
   mach.isLeader = FALSE; //(for now)
   mach.chat_size = 0;
   mach.current_sequence_num = 0; //(for now)
@@ -224,4 +224,12 @@ node *getElement(linkedList *l, int i) {
 
 node *seeTop(linkedList *l) {
   return l->head;
+}
+
+/***********************************/
+
+void waitFor (unsigned int secs) {
+    int retTime;
+    retTime = time(0) + secs;     // Get finishing time.
+    while (time(0) < retTime);    // Loop until it arrives.
 }
