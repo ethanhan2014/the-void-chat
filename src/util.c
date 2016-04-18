@@ -5,7 +5,8 @@
 #include <netdb.h>
 #include <string.h>
 #include <ifaddrs.h>
-#include <sys/time.h>
+
+#include <time.h>
 
 #include "util.h"
 

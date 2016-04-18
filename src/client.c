@@ -358,11 +358,13 @@ void *recv_clnt_hb(void *param)
     }
 
     hb->header.about = *params->mach;
+    hb_sender_len = sizeof(hb_sender_addr);
 
-    if (sendto(params->sock_hb, hb, sizeof(*hb), 0, (struct sockaddr *)&hb_sender_addr, 
-          hb_sender_len) < 0) 
+    if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
+      (struct sockaddr *)&hb_sender_addr, hb_sender_len) < 0) 
     {
-          error("Cannot send message to this client");
-      }
+      error("Cannot send message to this client");
+    }
   }
+  pthread_exit(0);
 }

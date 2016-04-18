@@ -352,7 +352,7 @@ void* send_hb(void *param)
 
         this.send_count++;
 
-        if(this.send_count - this.recv_count > 2)
+        if(this.send_count - this.recv_count > 3)
         {
           /*claim this member is dead*/
           //remove the member
