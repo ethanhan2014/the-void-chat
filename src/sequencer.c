@@ -139,10 +139,10 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     join_msg.header.about = *mach;
     sprintf(join_msg.content, "NOTICE %s joined on %s:%d", 
       m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
-    broadcast_message(join_msg, mach);
 
-    //update clientlist
-    add_client(mach, m.header.about); 
+    add_client(mach, m.header.about); //update clientlist
+    addElement(messagesQueue, currentSequenceNum, "NO", join_msg); //update msgs
+    currentSequenceNum++;
 
     //respond to original client
     message response;
@@ -170,7 +170,7 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     text_msg.header.status = TRUE;
     text_msg.header.about = *mach;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
-    //broadcast_message(text_msg, mach); //send the msg out to everyone
+
     addElement(messagesQueue, currentSequenceNum, "NO", text_msg);
     currentSequenceNum++;
     printf("We are currently on sequence number: %d\n", currentSequenceNum);
