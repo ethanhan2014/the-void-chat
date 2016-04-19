@@ -27,10 +27,6 @@ message join_request(machine_info* mach);
 //returns the response from the server
 message msg_request(machine_info* mach, char msg[BUFSIZE]);
 
-//sends a quit notice to mach's leader ip:port
-//expects no response from leader; just quits after sending
-void quit_notice(machine_info* mach);
-
 //enters main client loop, given this machine's info, socket s we listen on
 void client_loop(machine_info* mach, int s, int hb);
 

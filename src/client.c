@@ -32,6 +32,7 @@ void client_start(machine_info* mach) {
   messageQueue->length = 0;
   tempBuff = (linkedList *) malloc(sizeof(linkedList));
   tempBuff->length = 0;
+
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", mach->name, 
     mach->host_ip, mach->host_port, mach->ipaddr, mach->portno);
   message host_attempt = join_request(mach);
@@ -65,6 +66,7 @@ void client_loop(machine_info* mach, int s, int hb) {
   thread_params params;
   params.mach = mach;
   params.socket = s;
+  params.sock_hb = hb;
 
   pthread_t listener_thread;
   if (pthread_create(&listener_thread, NULL, client_listen, &params)) {
@@ -74,13 +76,13 @@ void client_loop(machine_info* mach, int s, int hb) {
 
   pthread_t printer_thread;
   if (pthread_create(&printer_thread, NULL, sortAndPrint, NULL)) {
-    perror("Oh no! We don't have a printer thread! We're screwed!");
+    perror("Error making printer thread to process message queue");
     exit(1);
   }
 
   pthread_t hb_receiver;
   if (pthread_create(&hb_receiver, NULL, recv_clnt_hb, &params)) {
-    perror("Oh no! We don't have a printer thread! We're screwed!");
+    perror("Error making heartbeat thread");
     exit(1);
   }
 
@@ -97,7 +99,6 @@ void client_loop(machine_info* mach, int s, int hb) {
     if (scanf("%s", input) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
-      quit_notice(mach);
     } else {
       msg_request(mach, input); //do nothing with response right now
     }
@@ -198,43 +199,6 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
   close(s);
 
   return response;
-}
-
-void quit_notice(machine_info* mach) {
-  int s; //the socket
-  if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-    perror("Error making socket to send message");
-    exit(1);
-  }
-  //give socket a timeout
-  struct timeval timeout;
-  timeout.tv_sec = 1;
-  timeout.tv_usec = 0;
-  if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-    perror("Error setting socket timeout parameter");
-  }
-
-  //make message to send
-  message quit_msg;
-  msg_header header;
-  header.timestamp = (int)time(0);
-  header.msg_type = QUIT;
-  header.status = TRUE;
-  header.about = *mach;
-  quit_msg.header = header;
-
-  //setup host info to connect to/send message to
-  struct sockaddr_in server;
-  server.sin_family = AF_INET;
-  server.sin_addr.s_addr = inet_addr(mach->host_ip);
-  server.sin_port = htons(mach->host_port);
-
-  if (sendto(s, &quit_msg, sizeof(message), 0, (struct sockaddr *)&server, 
-      (socklen_t)sizeof(struct sockaddr)) < 0) {
-    printf("Note: could not send quit message to leader, quitting anyway\n");
-  }
-
-  close(s);
 }
 
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
@@ -342,28 +306,21 @@ void* sortAndPrint() {
 void *recv_clnt_hb(void *param)
 {
   thread_params* params = (thread_params*)param;
-  message *hb = (message *)malloc(sizeof(message));
+  message hb;
+  struct sockaddr_in source;
 
-  struct sockaddr_in hb_sender_addr;
-  int hb_sender_len;
+  int done = FALSE;
+  while(!done) {
+    if (receive_message(params->sock_hb, &hb, &source, params->mach) == FALSE) {
+      done = TRUE;
+    } else {
+      hb.header.about = *(params->mach);
 
-  hb_sender_len = sizeof(hb_sender_addr);
-
-  while(1)
-  {
-    if(recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
-        (struct sockaddr*)&hb_sender_addr, (unsigned int *)&hb_sender_len) < 0) 
-    {
-      error("Cannot receive message");
-    }
-
-    hb->header.about = *params->mach;
-    hb_sender_len = sizeof(hb_sender_addr);
-
-    if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
-      (struct sockaddr *)&hb_sender_addr, hb_sender_len) < 0) 
-    {
-      error("Cannot send message to this client");
+      if (sendto(params->sock_hb, &hb, sizeof(message), 0, 
+          (struct sockaddr *)&source, (socklen_t)sizeof(struct sockaddr)) < 0) {
+        perror("Error responding to heartbeat message");
+        done = TRUE;
+      }
     }
   }
   pthread_exit(0);

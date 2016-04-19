@@ -59,19 +59,19 @@ void sequencer_loop(machine_info* mach, int s, int hb) {
 
   pthread_t sender_thread;
   if (pthread_create(&sender_thread, NULL, sequencer_send_queue, &params)) {
-    perror("Error making thread to send shit! We're screwed!");
+    perror("Error making sender thread");
     exit(1);
   }
 
   pthread_t hb_sender_thread;
   if (pthread_create(&hb_sender_thread, NULL, send_hb, &params)) {
-    perror("Error making thread to send shit! We're screwed!");
+    perror("Error making heartbeat sender thread");
     exit(1);
   }
 
   pthread_t hb_receiver_thread;
   if (pthread_create(&hb_receiver_thread, NULL, recv_hb, &params)) {
-    perror("Error making thread to send shit! We're screwed!");
+    perror("Error making heartbeat receiver thread");
     exit(1);
   }
 
@@ -83,9 +83,6 @@ void sequencer_loop(machine_info* mach, int s, int hb) {
     if (scanf("%s", input) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
-
-      //TODO tell other clients to begin leader election
-      //do we really want to do this? Shouldn't the clients detect leader failure automatically and begin this on own?
     } else {
       message text_msg; //make a message to send out then call broadcast_message
       msg_header header;
@@ -177,19 +174,6 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
     addElement(messagesQueue, currentSequenceNum, "NO", text_msg);
     currentSequenceNum++;
     printf("We are currently on sequence number: %d\n", currentSequenceNum);
-  } else if (m.header.msg_type == QUIT) {
-    //Note no direct response expected for this message from the quitting client
-    //clients will update their client lists upon receiving the message
-    remove_client(mach, m.header.about); //update leader's client list
-
-    message quit_msg;
-    quit_msg.header.timestamp = (int)time(0);
-    quit_msg.header.msg_type = QUIT;
-    quit_msg.header.status = TRUE;
-    quit_msg.header.about = *mach;
-    sprintf(quit_msg.content, "NOTICE %s left the chat or crashed",
-      m.header.about.name);
-    broadcast_message(quit_msg, mach);//send the msg out to everyone
   }
 }
 

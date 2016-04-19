@@ -143,8 +143,7 @@ void print_message(message m) {
     error("attempt to print a message not from the leader");
   }
 
-  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER
-      || m.header.msg_type == QUIT) {
+  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER) {
     printf("%s\n", m.content);
   } else {
     error("attempt to print a message type that is not allowed");

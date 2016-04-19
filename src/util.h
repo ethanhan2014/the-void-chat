@@ -19,7 +19,6 @@
 #define ACK 8
 #define NEWLEADER 9
 #define NEW_USER 10
-#define QUIT 11
 
 // *** STRUCT FORMATS *** //
 //for messages between machines
@@ -66,7 +65,7 @@ typedef struct messages {
 typedef struct thread_params {
   machine_info* mach; //relevant machine_info
   int socket; //relevant socket
-  int sock_hb;
+  int sock_hb; //socket we set up to listen for heartbeat
 } thread_params;
 
 
