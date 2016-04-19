@@ -332,8 +332,6 @@ void* send_hb(void *param)
 
         hb_sender_addr.sin_port = htons(this->portno-1);
 
-        printf("sending out...\n");
-
         if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
           (struct sockaddr *)&hb_sender_addr,(socklen_t)sizeof(struct sockaddr)) < 0) 
         {
@@ -355,8 +353,7 @@ void* send_hb(void *param)
         // if(hb->header.msg_type!=ACK){
         //   printf("we notice %s quitted or crashed\n", this.name);
         // }
-        // this.send_count++;
-        printf("send:%d, recv:%d\n", this->send_count, this->recv_count);
+        // printf("send:%d, recv:%d\n", this->send_count, this->recv_count);
         this->send_count++;
         if(this->send_count - this->recv_count > 3)
         {
@@ -387,7 +384,6 @@ void* recv_hb(void *param)
 
   while(1)
   {
-    printf("receiving reply...\n");
 
     if (recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
           (struct sockaddr*)&hb_sender_addr, &hb_sender_len) < 0)

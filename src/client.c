@@ -331,7 +331,6 @@ void *recv_clnt_hb(void *param)
       error("Cannot receive hb message");
     }
 
-    printf("Receive hb messages!\n");
     this->recv_count = this->send_count;
 
     hb->header.msg_type = ACK;

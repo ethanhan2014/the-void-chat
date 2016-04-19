@@ -101,9 +101,13 @@ void add_client(machine_info* add_to, machine_info add) {
   strcpy(new.ipaddr, add.ipaddr);
   new.portno = add.portno;
   new.isLeader = add.isLeader;
+  new.send_count = 0;
+  new.recv_count = 0;
 
   add_to->others[add_to->chat_size] = new;
   add_to->chat_size++;
+
+
 }
 
 void remove_client(machine_info* update, machine_info remove) {
