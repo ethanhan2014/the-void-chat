@@ -49,3 +49,5 @@ void* client_listen(void* input);
 void* sortAndPrint();
 
 void *recv_clnt_hb(void *param);
+
+void *check_hb(void *param);

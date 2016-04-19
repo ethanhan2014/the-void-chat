@@ -21,11 +21,17 @@ void client_start(machine_info* mach) {
   bzero((char *) &hb_receiver, sizeof(hb_receiver));
   hb_receiver.sin_family = AF_INET;
   hb_receiver.sin_addr.s_addr = inet_addr(mach->ipaddr);
-  hb_receiver.sin_port = mach->portno-1; //assigns to random open port
+  hb_receiver.sin_port = htons(mach->portno-1); //assigns to random open port
   if (bind(hb, (struct sockaddr*) &hb_receiver, sizeof(hb_receiver)) < 0) {
     perror("Error binding listener socket");
     exit(1);
   }
+  // struct timeval timeout;
+  // timeout.tv_sec = 2;
+  // timeout.tv_usec = 0;
+  // if (setsockopt(hb, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+  //   error("Error setting socket timeout parameter");
+  // }
   /* ************************************* */
 
   messageQueue = (linkedList *) malloc(sizeof(linkedList));
@@ -86,11 +92,11 @@ void client_loop(machine_info* mach, int s, int hb) {
     exit(1);
   }
 
-  // pthread_t hb_checker;
-  // if (pthread_create(&printer_thread, NULL, sortAndPrint, NULL)) {
-  //   perror("Oh no! We don't have a printer thread! We're screwed!");
-  //   exit(1);
-  // }
+  pthread_t hb_checker;
+  if (pthread_create(&hb_checker, NULL, check_hb, &params)) {
+    perror("Error on hb checking thread");
+    exit(1);
+  }
 
   //loop waiting for user input
   int done = FALSE;
@@ -306,22 +312,55 @@ void* sortAndPrint() {
 void *recv_clnt_hb(void *param)
 {
   thread_params* params = (thread_params*)param;
-  message hb;
-  struct sockaddr_in source;
+  machine_info *mach = params->mach;
+  client *this = &mach->others[0];
 
-  int done = FALSE;
-  while(!done) {
-    if (receive_message(params->sock_hb, &hb, &source, params->mach) == FALSE) {
-      done = TRUE;
-    } else {
-      hb.header.about = *(params->mach);
+  message *hb = (message *)malloc(sizeof(message));
 
-      if (sendto(params->sock_hb, &hb, sizeof(message), 0, 
-          (struct sockaddr *)&source, (socklen_t)sizeof(struct sockaddr)) < 0) {
-        perror("Error responding to heartbeat message");
-        done = TRUE;
-      }
+  struct sockaddr_in hb_sender_addr;
+  socklen_t hb_sender_len;
+  hb_sender_addr.sin_family = AF_INET;
+  hb_sender_len = sizeof(hb_sender_addr);
+
+  while(1)
+  {
+    
+    if(recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
+        (struct sockaddr*)&hb_sender_addr, &hb_sender_len) < 0) 
+    {
+      error("Cannot receive hb message");
     }
+
+    printf("Receive hb messages!\n");
+    this->recv_count = this->send_count;
+
+    hb->header.msg_type = ACK;
+    hb->header.about = *params->mach;
+
+    if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
+      (struct sockaddr *)&hb_sender_addr, (socklen_t)sizeof(struct sockaddr)) < 0) 
+    {
+      error("Cannot send hb message to this client");
+    }
+  }
+  pthread_exit(0);
+}
+
+void *check_hb(void *param)
+{
+  thread_params* params = (thread_params*)param;
+  machine_info *mach = params->mach;
+  client *this = &mach->others[0];
+
+  while(1)
+  {
+    if(this->send_count - this->recv_count>3)
+    {
+      printf("we notice leader is dead...\n");
+      //hold leader election...
+    }
+    waitFor(3);
+    this->send_count++;
   }
   pthread_exit(0);
 }

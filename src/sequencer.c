@@ -21,11 +21,17 @@ void sequencer_start(machine_info* mach) {
   bzero((char *) &hb_receiver, sizeof(hb_receiver));
   hb_receiver.sin_family = AF_INET;
   hb_receiver.sin_addr.s_addr = inet_addr(mach->ipaddr);
-  hb_receiver.sin_port = mach->portno-1; //assigns to random open port
+  hb_receiver.sin_port = htons(mach->portno-1); 
   if (bind(hb, (struct sockaddr*) &hb_receiver, sizeof(hb_receiver)) < 0) {
     perror("Error binding listener socket");
     exit(1);
   }
+  // struct timeval timeout;
+  // timeout.tv_sec = 3;
+  // timeout.tv_usec = 0;
+  // if (setsockopt(hb, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+  //   error("Error setting socket timeout parameter");
+  // }
   /* ************************************* */
 
   add_client(mach, *mach); //adding its self to client list
@@ -303,7 +309,7 @@ void* send_hb(void *param)
   hb->header.about = *mach;
 
   struct sockaddr_in hb_sender_addr;
-  int hb_sender_len;
+  // socklen_t hb_sender_len;
 
   while(1)
   {
@@ -311,13 +317,12 @@ void* send_hb(void *param)
     int i;
     for(i = 0; i < mach->chat_size; i++)
     {
-      client this = mach->others[i];
-      if(!this.isLeader)
+      client *this = &mach->others[i];
+      if(!this->isLeader)
       { 
-
         bzero((char *) &hb_sender_addr, sizeof(hb_sender_addr));
         hb_sender_addr.sin_family = AF_INET;
-        hb_sender_addr.sin_addr.s_addr = inet_addr(this.ipaddr);
+        hb_sender_addr.sin_addr.s_addr = inet_addr(this->ipaddr);
 
         /* *******************************************
         *
@@ -325,24 +330,41 @@ void* send_hb(void *param)
         *
         *  ********************************************/
 
-        hb_sender_addr.sin_port = htons(this.portno-1);
+        hb_sender_addr.sin_port = htons(this->portno-1);
 
-        hb_sender_len = sizeof(hb_sender_addr);
+        printf("sending out...\n");
 
-        if (sendto(params->sock_hb, hb, sizeof(*hb), 0, (struct sockaddr *)&hb_sender_addr, 
-          hb_sender_len) < 0) {
-          error("Cannot send message to this client");
+        if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
+          (struct sockaddr *)&hb_sender_addr,(socklen_t)sizeof(struct sockaddr)) < 0) 
+        {
+          error("Cannot send hb message to this client");
         }
 
-        this.send_count++;
+        // hb_sender_len = sizeof(hb_sender_addr);
 
-        if(this.send_count - this.recv_count > 3)
+        // printf("receiving reply...\n");
+
+        // if (recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
+        //   (struct sockaddr*)&hb_sender_addr, &hb_sender_len) < 0)
+        // {
+        //   error("Cannot receive hb");
+        // }
+
+        // printf("Got hb reply!\n");
+
+        // if(hb->header.msg_type!=ACK){
+        //   printf("we notice %s quitted or crashed\n", this.name);
+        // }
+        // this.send_count++;
+        printf("send:%d, recv:%d\n", this->send_count, this->recv_count);
+        this->send_count++;
+        if(this->send_count - this->recv_count > 3)
         {
           /*claim this member is dead*/
           //remove the member
           //send out message to update alive members' group list
-
-          printf("we notice %s quitted or crashed\n", this.name);
+          printf("we notice %s quitted or crashed\n", this->name);
+          remove_client(mach,hb->header.about);
         }
       }
     }
@@ -357,26 +379,30 @@ void* recv_hb(void *param)
   thread_params* params = (thread_params*)param;
 
   machine_info *mach = params->mach;
+
   message *hb = (message *)malloc(sizeof(message));
+
   struct sockaddr_in hb_sender_addr;
-  int hb_sender_len;
+  socklen_t hb_sender_len;
+
   while(1)
   {
+    printf("receiving reply...\n");
 
-    if(recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
-        (struct sockaddr*)&hb_sender_addr, (unsigned int *)&hb_sender_len) < 0) 
+    if (recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
+          (struct sockaddr*)&hb_sender_addr, &hb_sender_len) < 0)
     {
-      error("Cannot receive message");
+      error("Cannot receive hb");
     }
 
     int i;
     for(i=0; i<mach->chat_size; i++)
     {
-      client this = mach->others[i];
-      if(this.portno == hb->header.about.portno 
-        && strcmp(this.ipaddr,hb->header.about.ipaddr)==0)
+      client *this = &mach->others[i];
+      if(this->portno == hb->header.about.portno 
+        && strcmp(this->ipaddr,hb->header.about.ipaddr)==0)
       {
-        this.recv_count = this.send_count;
+        this->recv_count = this->send_count;
         break;
       }
     }
