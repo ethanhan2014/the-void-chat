@@ -38,7 +38,6 @@ void sequencer_start(machine_info* mach) {
   messagesQueue = (linkedList *) malloc(sizeof(linkedList));
   messagesQueue->length = 0;
   currentSequenceNum = 0;
-  currentPlaceInQueue = 0;
   printf("%s started a new chat, listening on %s:%d\n", mach->name, 
     mach->ipaddr, mach->portno);
   printf("Succeded, current users:\n");
@@ -90,7 +89,7 @@ void sequencer_loop(machine_info* mach, int s, int hb) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
     } else {
-      message text_msg; //make a message to send out then call broadcast_message
+      message text_msg;
       msg_header header;
       header.timestamp = (int)time(0);
       header.msg_type = MSG_REQ;
@@ -275,21 +274,19 @@ void* sequencer_listen(void* input) {
 void* sequencer_send_queue(void* input) {
   thread_params* params = (thread_params*)input;
 
-  int done = FALSE;
-
-  while (!done) {
+  while (1) {
 
    //printf("Current messages in queue: %d\n", messagesQueue->length);
    int i = 0;
    //printf("Broadcasting messages\n");
-   for (i = currentPlaceInQueue; i < messagesQueue->length; i++) {
+   for (i = 0; i < messagesQueue->length; i++) {
      node *c = getElement(messagesQueue, i);
      c->m.header.seq_num = c->v;
      //if (c->value[0] != 'Y') {
        broadcast_message(getElement(messagesQueue, i)->m, params->mach);
+       removeElement(messagesQueue, i);
      //}
    }
-   currentPlaceInQueue = i;
  }
   pthread_exit(0);
 }
@@ -360,7 +357,7 @@ void* send_hb(void *param)
           leave_notice.header.status = TRUE;
           leave_notice.header.about = *mach;
           sprintf(leave_notice.content, "NOTICE %s left the chat or crashed",
-            this->ipaddr);
+            this->name);
           addElement(messagesQueue, currentSequenceNum, "NO", leave_notice);
           currentSequenceNum++;
         }
