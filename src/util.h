@@ -93,7 +93,9 @@ int open_socket(machine_info* mach);
 //updates add_to's client list by adding a client with add's information
 void add_client(machine_info* add_to, machine_info add);
 //remove the client that corresponds to remove from update's client list
-void remove_client(machine_info* update, machine_info remove);
+void remove_client_mach(machine_info* update, machine_info remove);
+//same as above but removes based on the given client
+void remove_client_cl(machine_info* update, client remove);
 //changes update's client list to match source's
 void update_clients(machine_info* update, machine_info source);
 

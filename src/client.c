@@ -60,11 +60,12 @@ void client_start(machine_info* mach) {
 
   printf("Succeeded, current users:\n");
   print_users(mach);
-  printf("Current sequence number received: %d\n", latestSequenceNum);
+
   //we have leader info inside of host_attempt message now
   client_loop(mach, s, hb);
 
   close(s);
+  close(hb);
 }
 
 void client_loop(machine_info* mach, int s, int hb) {
@@ -94,7 +95,7 @@ void client_loop(machine_info* mach, int s, int hb) {
 
   pthread_t hb_checker;
   if (pthread_create(&hb_checker, NULL, check_hb, &params)) {
-    perror("Error on hb checking thread");
+    perror("Error making hb checking thread");
     exit(1);
   }
 
@@ -106,7 +107,7 @@ void client_loop(machine_info* mach, int s, int hb) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
     } else {
-      msg_request(mach, input); //do nothing with response right now
+      msg_request(mach, input);
     }
   }
 }
@@ -298,7 +299,6 @@ void* sortAndPrint() {
     //we found the message
     //rejoice!
     if (found) {
-      printf("Printing message with sequence num: %d\n", getElement(tempBuff, i)->v);
       print_message(getElement(tempBuff, i)->m);
       latestSequenceNum++;
     }
@@ -315,31 +315,23 @@ void *recv_clnt_hb(void *param)
   machine_info *mach = params->mach;
   client *this = &mach->others[0];
 
-  message *hb = (message *)malloc(sizeof(message));
+  message hb;
+  struct sockaddr_in source;
+  source.sin_family = AF_INET;
 
-  struct sockaddr_in hb_sender_addr;
-  socklen_t hb_sender_len;
-  hb_sender_addr.sin_family = AF_INET;
-  hb_sender_len = sizeof(hb_sender_addr);
-
-  while(1)
-  {
-    
-    if(recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
-        (struct sockaddr*)&hb_sender_addr, &hb_sender_len) < 0) 
-    {
-      error("Cannot receive hb message");
+  while(1) {
+    if(receive_message(params->sock_hb, &hb, &source, mach) == FALSE) {
+      error("Cannot receive heartbeat message");
     }
 
     this->recv_count = this->send_count;
 
-    hb->header.msg_type = ACK;
-    hb->header.about = *params->mach;
+    hb.header.msg_type = ACK;
+    hb.header.about = *params->mach;
 
-    if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
-      (struct sockaddr *)&hb_sender_addr, (socklen_t)sizeof(struct sockaddr)) < 0) 
-    {
-      error("Cannot send hb message to this client");
+    if (sendto(params->sock_hb, &hb, sizeof(message), 0, 
+        (struct sockaddr *)&source, (socklen_t)sizeof(struct sockaddr)) < 0) {
+      error("Cannot send heartbeat message");
     }
   }
   pthread_exit(0);
@@ -353,10 +345,10 @@ void *check_hb(void *param)
 
   while(1)
   {
-    if(this->send_count - this->recv_count>3)
+    if(this->send_count - this->recv_count > 3)
     {
       printf("we notice leader is dead...\n");
-      //hold leader election...
+      //TODO hold leader election...
     }
     waitFor(3);
     this->send_count++;

@@ -48,6 +48,7 @@ void sequencer_start(machine_info* mach) {
   sequencer_loop(mach, s, hb);
   
   close(s);
+  close(hb);
 }
 
 void sequencer_loop(machine_info* mach, int s, int hb) {
@@ -85,7 +86,6 @@ void sequencer_loop(machine_info* mach, int s, int hb) {
   int done = FALSE;
   while (!done) {
     char input[BUFSIZE]; //get user input (messages)
-    printf("Waiting for input\n");
     if (scanf("%s", input) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
@@ -98,14 +98,12 @@ void sequencer_loop(machine_info* mach, int s, int hb) {
       header.about = *mach;
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", mach->name, input);
-      //broadcast_message(text_msg, mach);
-      printf("Adding to message queue\n");
+
       if (input[0] == '0') {
         printf("Special character detected\n");
         addElement(messagesQueue, currentSequenceNum, "YES", text_msg);
       }
       else {
-        printf("No special character\n");
         addElement(messagesQueue, currentSequenceNum, "NO", text_msg);
       }
       currentSequenceNum++;
@@ -179,7 +177,6 @@ void parse_incoming_seq(message m, machine_info* mach, struct sockaddr_in source
 
     addElement(messagesQueue, currentSequenceNum, "NO", text_msg);
     currentSequenceNum++;
-    printf("We are currently on sequence number: %d\n", currentSequenceNum);
   }
 }
 
@@ -234,24 +231,24 @@ void broadcast_message(message m, machine_info* mach) {
       socklen_t server_len = sizeof(server);
       int n = 0;
       for (n = 0; n < 3; n++) {
-        if (recvfrom(o, &reply, sizeof(message), 0, (struct sockaddr*)&server, &server_len) < 0) {
+        if (recvfrom(o, &reply, sizeof(message), 0, (struct sockaddr*)&server, 
+            &server_len) < 0) {
           printf("Failed to get response\n");
+
           if (sendto(o, &m, sizeof(message), 0, (struct sockaddr *)&server, 
-          (socklen_t)sizeof(struct sockaddr)) < 0) {
+              (socklen_t)sizeof(struct sockaddr)) < 0) {
            perror("Cannot send message to this client");
            exit(1);
-      }
+          }
         }
         else {
-          if(reply.header.msg_type == ACK) {
-            printf("It's an ack alright\n");
-          }
-          printf("Got response\n");
           break;
         }
       }
     }
   }
+
+  close(o);
 }
 
 void* sequencer_listen(void* input) {
@@ -303,13 +300,11 @@ void* send_hb(void *param)
 
   machine_info *mach = params->mach;
 
-  message *hb = (message *)malloc(sizeof(message));
-
-  hb->header.msg_type = ACK;
-  hb->header.about = *mach;
+  message hb;
+  hb.header.msg_type = ACK;
+  hb.header.about = *mach;
 
   struct sockaddr_in hb_sender_addr;
-  // socklen_t hb_sender_len;
 
   while(1)
   {
@@ -318,8 +313,7 @@ void* send_hb(void *param)
     for(i = 0; i < mach->chat_size; i++)
     {
       client *this = &mach->others[i];
-      if(!this->isLeader)
-      { 
+      if(!this->isLeader) {
         bzero((char *) &hb_sender_addr, sizeof(hb_sender_addr));
         hb_sender_addr.sin_family = AF_INET;
         hb_sender_addr.sin_addr.s_addr = inet_addr(this->ipaddr);
@@ -332,7 +326,7 @@ void* send_hb(void *param)
 
         hb_sender_addr.sin_port = htons(this->portno-1);
 
-        if (sendto(params->sock_hb, hb, sizeof(*hb), 0, 
+        if (sendto(params->sock_hb, &hb, sizeof(message), 0, 
           (struct sockaddr *)&hb_sender_addr,(socklen_t)sizeof(struct sockaddr)) < 0) 
         {
           error("Cannot send hb message to this client");
@@ -355,17 +349,24 @@ void* send_hb(void *param)
         // }
         // printf("send:%d, recv:%d\n", this->send_count, this->recv_count);
         this->send_count++;
-        if(this->send_count - this->recv_count > 3)
-        {
-          /*claim this member is dead*/
-          //remove the member
-          //send out message to update alive members' group list
-          printf("we notice %s quitted or crashed\n", this->name);
-          remove_client(mach,hb->header.about);
+        if(this->send_count - this->recv_count > 3) {
+          //this member is now dead
+          remove_client_cl(mach, *this);//remove the member
+
+          //make message to send out notifying that the client left
+          message leave_notice;
+          leave_notice.header.timestamp = (int)time(0);
+          leave_notice.header.msg_type = MSG_REQ;
+          leave_notice.header.status = TRUE;
+          leave_notice.header.about = *mach;
+          sprintf(leave_notice.content, "NOTICE %s left the chat or crashed",
+            this->ipaddr);
+          addElement(messagesQueue, currentSequenceNum, "NO", leave_notice);
+          currentSequenceNum++;
         }
       }
     }
-    waitFor(3); //every 3 second sending out heartbeat messages 
+    waitFor(3); //send out heartbeat message every 3 seconds 
   }
   
   pthread_exit(0);
@@ -374,10 +375,11 @@ void* send_hb(void *param)
 void* recv_hb(void *param)
 {
   thread_params* params = (thread_params*)param;
-
   machine_info *mach = params->mach;
 
-  message *hb = (message *)malloc(sizeof(message));
+  message hb;
+  hb.header.msg_type = ACK;
+  hb.header.about = *mach;
 
   struct sockaddr_in hb_sender_addr;
   socklen_t hb_sender_len;
@@ -385,7 +387,7 @@ void* recv_hb(void *param)
   while(1)
   {
 
-    if (recvfrom(params->sock_hb, hb, sizeof(*hb), 0, 
+    if (recvfrom(params->sock_hb, &hb, sizeof(message), 0, 
           (struct sockaddr*)&hb_sender_addr, &hb_sender_len) < 0)
     {
       error("Cannot receive hb");
@@ -395,8 +397,8 @@ void* recv_hb(void *param)
     for(i=0; i<mach->chat_size; i++)
     {
       client *this = &mach->others[i];
-      if(this->portno == hb->header.about.portno 
-        && strcmp(this->ipaddr,hb->header.about.ipaddr)==0)
+      if(this->portno == hb.header.about.portno 
+        && strcmp(this->ipaddr,hb.header.about.ipaddr)==0)
       {
         this->recv_count = this->send_count;
         break;

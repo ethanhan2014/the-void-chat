@@ -110,7 +110,26 @@ void add_client(machine_info* add_to, machine_info add) {
 
 }
 
-void remove_client(machine_info* update, machine_info remove) {
+void remove_client_mach(machine_info* update, machine_info remove) {
+  int i;
+  for (i = 0; i < update->chat_size; i++) {
+    client this = update->others[i];
+
+    if (strcmp(this.name, remove.name) == 0 
+        && strcmp(this.ipaddr, remove.ipaddr) == 0 
+        && this.portno == remove.portno 
+        && this.isLeader == remove.isLeader) {
+      // match found; move all others up by one; for loop exits after this while
+      while (i < update->chat_size) {
+        update->others[i] = update->others[i+1];
+        i++;
+      }
+      update->chat_size--;
+    }
+  }
+}
+
+void remove_client_cl(machine_info* update, client remove) {
   int i;
   for (i = 0; i < update->chat_size; i++) {
     client this = update->others[i];
