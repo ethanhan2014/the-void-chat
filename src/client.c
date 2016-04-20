@@ -36,8 +36,6 @@ void client_start(machine_info* mach) {
 
   messageQueue = (linkedList *) malloc(sizeof(linkedList));
   messageQueue->length = 0;
-  tempBuff = (linkedList *) malloc(sizeof(linkedList));
-  tempBuff->length = 0;
 
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", mach->name, 
     mach->host_ip, mach->host_port, mach->ipaddr, mach->portno);
@@ -64,8 +62,19 @@ void client_start(machine_info* mach) {
   //we have leader info inside of host_attempt message now
   client_loop(mach, s, hb);
 
-  close(s);
+  //cleanup
+  close(s); //close sockets
   close(hb);
+
+  //clear queue if not empty
+  node* curr = messageQueue->head;
+  node* next = NULL;
+  while (curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(messageQueue);
 }
 
 void client_loop(machine_info* mach, int s, int hb) {
@@ -211,7 +220,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
 void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
     int s) {
   if (m.header.msg_type == JOIN_REQ) {
-    //pack up a lovely response message
+    //pack up a response message
     message respond_join;
     msg_header header;
     header.timestamp = (int)time(0);
@@ -228,11 +237,10 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
       exit(1);
     }
   } else {
-    //well we don't want to print just yet now do we cutie pie?
-    //print_message(m);
-    //let's add this to a temp buff and sort it somewhere else
-    addElement(tempBuff, m.header.seq_num, "", m);
-    //let's also ack the message and let the sequencer know that this thang was received
+    //add this to a temp buff and sort it somewhere else
+    addElement(messageQueue, m.header.seq_num, "", m);
+
+    //also ack the message and let sequencer know it was received
     message ack;
     msg_header header;
     header.timestamp = (int)time(0);
@@ -242,7 +250,7 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
     ack.header = header;
     if (sendto(s, &ack , sizeof(ack), 0, 
         (struct sockaddr*)&source, sizeof(source)) < 0) {
-      perror("Error with acking the sequencer. That's an issue bro");
+      perror("Error responding to client with ACK");
       exit(1);
     }
   }
@@ -266,43 +274,41 @@ int receive_message(int s, message* m, struct sockaddr_in* source,
 void* client_listen(void* input) {
   thread_params* params = (thread_params*)input;
 
-  int done = FALSE;
-  while (!done) {
+  while (1) {
     message incoming;
     struct sockaddr_in source;
 
     //wait for a message + update clients every time if message from leader
     if (receive_message(params->socket, &incoming, &source, params->mach) == FALSE) {
-      done = TRUE; //socket was closed somewhere/became invalid; kill thread
-    } else {
-      parse_incoming_cl(incoming, params->mach, source, params->socket); //deal with the message
+      error("Error listening for incoming messages");
     }
+
+    //deal with the message
+    parse_incoming_cl(incoming, params->mach, source, params->socket); 
   }
 
   pthread_exit(0);
 }
 
 void* sortAndPrint() {
-  int done = FALSE;
-
-  while (!done) {
+  while (1) {
     //we simply find the next one in the sequence if we can
     //otherwise, we hold
     int i = 0;
     int found = FALSE;
-    for (i = 0; i < tempBuff->length; i++) {
-      if (getElement(tempBuff, i)->v == latestSequenceNum + 1) {
+    for (i = 0; i < messageQueue->length; i++) {
+      if (getElement(messageQueue, i)->v == latestSequenceNum + 1) {
         found = TRUE;
         break;
       }
     }
     //we found the message
-    //rejoice!
     if (found) {
-      print_message(getElement(tempBuff, i)->m);
+      print_message(getElement(messageQueue, i)->m);
+      removeElement(messageQueue, i);
       latestSequenceNum++;
     }
-    else { //well, we didn't find it, so we gotta wait a little it looks like, or something
+    else { //well, we didn't find it, so we gotta wait
       //printf("Message missing\n");
     }
   }
@@ -321,7 +327,7 @@ void *recv_clnt_hb(void *param)
 
   while(1) {
     if(receive_message(params->sock_hb, &hb, &source, mach) == FALSE) {
-      error("Cannot receive heartbeat message");
+      error("Error receiving heartbeat message");
     }
 
     this->recv_count = this->send_count;
@@ -331,7 +337,7 @@ void *recv_clnt_hb(void *param)
 
     if (sendto(params->sock_hb, &hb, sizeof(message), 0, 
         (struct sockaddr *)&source, (socklen_t)sizeof(struct sockaddr)) < 0) {
-      error("Cannot send heartbeat message");
+      error("Error sending heartbeat message");
     }
   }
   pthread_exit(0);

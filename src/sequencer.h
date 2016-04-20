@@ -5,7 +5,6 @@
 
 linkedList *messagesQueue;
 int currentSequenceNum;
-int currentPlaceInQueue;
 
 void sequencer_start(machine_info* mach);
 

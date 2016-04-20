@@ -134,10 +134,8 @@ typedef struct linkedList {
 //this function always adds elements to the end of the list
 int addElement(linkedList *l, int value, char *otherVal, message m);
 
-//this function will remove an element from the list at index i
-//although this function should in theory work, I never did quite end up using it in my last project lol
-//So to all future code writers of this project, use this at your own risk. Don't say I didn't warn you...
-int removeElement(linkedList *l, int i);
+//this function will remove an element from the list at index idx (where the first is at 0 and the last is at length-1 )
+int removeElement(linkedList *l, int idx);
 
 //this will get an element from the list at index i
 //if i is greater than the length, it will return NULL
@@ -146,5 +144,5 @@ node *getElement(linkedList *l, int i);
 //this will return teh first element of the list
 node *seeTop(linkedList *l);
 
-/* wait for certain seconds*/
+/* wait for certain number of seconds*/
 void waitFor (unsigned int secs);

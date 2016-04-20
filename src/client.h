@@ -12,9 +12,7 @@
 #include "util.h"
 
 linkedList *messageQueue;
-linkedList *tempBuff;
 int latestSequenceNum;
-node *nextInSeq;
 
 //kicks off client process
 void client_start(machine_info* mach);

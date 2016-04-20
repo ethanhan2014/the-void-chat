@@ -204,26 +204,31 @@ int addElement(linkedList *l, int value, char *otherVal, message m) {
   return 0;
 }
 
-int removeElement(linkedList *l, int i) {
-  //printf("Removing\n");
-  if (i >= l->length) {
-    //printf("Invalid index\n");
+int removeElement(linkedList *l, int idx) {
+  //invalid index case
+  if (idx >= l->length || idx < 0) {
     return 1;
   }
-  if (i == 0) {
-    node *c = l->head;
+
+  //first element case
+  if (idx == 0) {
+    node* head = l->head;
     l->head = l->head->next;
-    free(c);
+    free(head);
     l->length--;
     return 0;
   }
-  int n = 0;
-  node *current = l->head;
-  for (n = 0; n < i; n++) {
-    current = current->next;
+
+  //otherwise scan for the element we care about
+  int i = 0;
+  node* curr = l->head;
+  while (i != idx - 1) {
+    curr = curr->next;
+    i++;
   }
-  node *removal = current->next;
-  current = current->next->next;
+
+  node* removal = curr->next; //update pointers and list length
+  curr->next = removal->next;
   free(removal);
   l->length--;
   return 0;
