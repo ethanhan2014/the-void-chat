@@ -20,7 +20,7 @@ int latestSequenceNum;
 int client_trigger;
 
 //kicks off client process
-void client_start(machine_info* mach);
+void client_start();
 
 //sends a join request to mach's leader ip:port
 //returns the response from the server
@@ -31,11 +31,10 @@ message join_request(machine_info* mach);
 message msg_request(machine_info* mach, char msg[BUFSIZE]);
 
 //enters main client loop, given this machine's info, socket s we listen on
-void client_loop(machine_info* mach, int s, int hb);
+void client_loop(int s, int hb);
 
 //parse given message and perform proper response
-void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
-  int s);
+void parse_incoming_cl(message m, struct sockaddr_in source, int s);
 
 //receives a message on given socket s, stores it in m, and stores sender info
 //in source (make source NULL if you don't care about this info)

@@ -19,6 +19,8 @@
 #define ACK 8
 #define NEWLEADER 9
 #define NEW_USER 10
+#define LEAVE 11
+
 
 // *** STRUCT FORMATS *** //
 //for messages between machines
@@ -63,10 +65,13 @@ typedef struct messages {
 
 //for thread parameters
 typedef struct thread_params {
-  machine_info* mach; //relevant machine_info
-  int socket; //relevant socket
+  int socket; //relevant listener socket
   int sock_hb; //socket we set up to listen for heartbeat
 } thread_params;
+
+
+// WE NEED THIS VAR REGARDLESS OF IF WE ARE CLIENT OR SEQUENCER //
+machine_info* this_mach;
 
 
 // *** FUNCTIONS *** //
@@ -83,7 +88,7 @@ int process_inputs(int argc, char const *argv[], char** ip, int* port);
 //machine's ip address that other clients can reach it at
 //note that this does not set portno, which is assigned randomly when we make 
 //this machine's listener port
-machine_info get_machine_info(char const *name);
+void set_machine_info(char const *name);
 
 //creates and binds a socket on the ip of the provided machine_info struct
 //also updates provided machine_info with the port we assign to
@@ -96,7 +101,7 @@ void add_client(machine_info* add_to, machine_info add);
 void remove_client_mach(machine_info* update, machine_info remove);
 //same as above but removes based on the given client
 void remove_client_cl(machine_info* update, client remove);
-//removes any client with isLeader = TRUE
+//removes any client with isLeader = TRUE from update's client list
 void remove_leader(machine_info* update);
 //changes update's client list to match source's
 void update_clients(machine_info* update, machine_info source);

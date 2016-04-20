@@ -36,9 +36,7 @@ int process_inputs(int argc, char const *argv[], char** ip, int* port) {
   return 0;
 }
 
-machine_info get_machine_info(char const *name) {
-  machine_info mach;
-
+void set_machine_info(char const *name) {
   //get ip address
   struct ifaddrs *address, *search;
   getifaddrs(&address);
@@ -50,7 +48,7 @@ machine_info get_machine_info(char const *name) {
       if (strcmp(search->ifa_name, "em1") == 0) {
         done = TRUE;
         struct sockaddr_in *info = (struct sockaddr_in *)search->ifa_addr;
-        strcpy(mach.ipaddr, inet_ntoa(info->sin_addr));
+        strcpy(this_mach->ipaddr, inet_ntoa(info->sin_addr));
       }
     }
     search = search->ifa_next;
@@ -58,12 +56,10 @@ machine_info get_machine_info(char const *name) {
   freeifaddrs(address);
 
   //give other info
-  strcpy(mach.name, name);
-  mach.isLeader = FALSE; //(for now)
-  mach.chat_size = 0;
-  mach.current_sequence_num = 0; //(for now)
-
-  return mach;
+  strcpy(this_mach->name, name);
+  this_mach->isLeader = FALSE; //(for now)
+  this_mach->chat_size = 0;
+  this_mach->current_sequence_num = 0; //(for now)
 }
 
 int open_socket(machine_info* mach) {

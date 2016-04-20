@@ -31,20 +31,23 @@ int main(int argc, char const *argv[]) {
   }
 
   //establish this machine's information
-  machine_info mach = get_machine_info(argv[1]);
+  this_mach = (machine_info*)malloc(sizeof(machine_info));
+  set_machine_info(argv[1]);
+
+  //init client_trigger to allow below loops to run
   client_trigger = 0;
 
   //start a new chat or figure out which one to join; INITIAL iteration
   if (argc == 2) {
-    mach.isLeader = TRUE;
+    this_mach->isLeader = TRUE;
 
-    sequencer_start(&mach);
+    sequencer_start();
   } else {
-    mach.isLeader = FALSE;
-    strcpy(mach.host_ip, ip);
-    mach.host_port = port;
+    this_mach->isLeader = FALSE;
+    strcpy(this_mach->host_ip, ip);
+    this_mach->host_port = port;
 
-    client_start(&mach);
+    client_start();
   }
 
   //after initial iteration, become sequencer if client_trigger was made 2
@@ -53,10 +56,10 @@ int main(int argc, char const *argv[]) {
   if (client_trigger == 2) {
     printf("Changing to sequencer instead of client due to election\n\n");
 
-    mach.isLeader = TRUE;
-    client_trigger = 0;
+    this_mach->isLeader = TRUE;
+    client_trigger = 0; //reset so sequencer loop can run
 
-    sequencer_start(&mach);
+    sequencer_start();
   }
   
   return 0;

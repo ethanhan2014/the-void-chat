@@ -11,8 +11,8 @@
 #include "util.h"
 #include "client.h"
 
-void client_start(machine_info* mach) {
-  int s = open_socket(mach);
+void client_start() {
+  int s = open_socket(this_mach);
 
   /* ************************************* */
   /* ******create heartbeat socket ******* */
@@ -20,8 +20,8 @@ void client_start(machine_info* mach) {
   struct sockaddr_in hb_receiver;
   bzero((char *) &hb_receiver, sizeof(hb_receiver));
   hb_receiver.sin_family = AF_INET;
-  hb_receiver.sin_addr.s_addr = inet_addr(mach->ipaddr);
-  hb_receiver.sin_port = htons(mach->portno-1); //assigns to random open port
+  hb_receiver.sin_addr.s_addr = inet_addr(this_mach->ipaddr);
+  hb_receiver.sin_port = htons(this_mach->portno-1); //assigns to random open port
   if (bind(hb, (struct sockaddr*) &hb_receiver, sizeof(hb_receiver)) < 0) {
     perror("Error binding listener socket");
     exit(1);
@@ -37,9 +37,9 @@ void client_start(machine_info* mach) {
   messageQueue = (linkedList *) malloc(sizeof(linkedList));
   messageQueue->length = 0;
 
-  printf("%s joining a new chat on %s:%d, listening on %s:%d\n", mach->name, 
-    mach->host_ip, mach->host_port, mach->ipaddr, mach->portno);
-  message host_attempt = join_request(mach);
+  printf("%s joining a new chat on %s:%d, listening on %s:%d\n", this_mach->name, 
+    this_mach->host_ip, this_mach->host_port, this_mach->ipaddr, this_mach->portno);
+  message host_attempt = join_request(this_mach);
 
   //real host info is in contents of message if we did not contact leader
   if (!host_attempt.header.about.isLeader) {
@@ -48,19 +48,19 @@ void client_start(machine_info* mach) {
     char* new_ip = strtok(ip_port, ":");
     int new_port = strtol(strtok(NULL, " "), 0, 10);
 
-    strcpy(mach->host_ip, new_ip);
-    mach->host_port = new_port;
+    strcpy(this_mach->host_ip, new_ip);
+    this_mach->host_port = new_port;
 
-    host_attempt = join_request(mach);
+    host_attempt = join_request(this_mach);
   }
   latestSequenceNum = host_attempt.header.about.current_sequence_num - 1;
-  update_clients(mach, host_attempt.header.about);
+  update_clients(this_mach, host_attempt.header.about);
 
   printf("Succeeded, current users:\n");
-  print_users(mach);
+  print_users(this_mach);
 
   //we have leader info inside of host_attempt message now
-  client_loop(mach, s, hb);
+  client_loop(s, hb);
 
 
   //*** CLEANUP ***//
@@ -78,10 +78,9 @@ void client_start(machine_info* mach) {
   free(messageQueue);
 }
 
-void client_loop(machine_info* mach, int s, int hb) {
+void client_loop(int s, int hb) {
   //kick off a thread that is listening in parallel
   thread_params params;
-  params.mach = mach;
   params.socket = s;
   params.sock_hb = hb;
 
@@ -122,7 +121,7 @@ void client_loop(machine_info* mach, int s, int hb) {
     pthread_cancel(input_thread);
 
     //remove leader
-    remove_leader(mach);
+    remove_leader(this_mach);
   }
 }
 
@@ -222,8 +221,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
   return response;
 }
 
-void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
-    int s) {
+void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
   if (m.header.msg_type == JOIN_REQ) {
     //pack up a response message
     message respond_join;
@@ -231,10 +229,10 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
     header.timestamp = (int)time(0);
     header.msg_type = JOIN_RES;
     header.status = TRUE;
-    header.about = *mach;
+    header.about = *this_mach;
     respond_join.header = header;
 
-    sprintf(respond_join.content, "%s:%d", mach->host_ip, mach->host_port);
+    sprintf(respond_join.content, "%s:%d", this_mach->host_ip, this_mach->host_port);
 
     if (sendto(s, &respond_join , sizeof(respond_join), 0, 
         (struct sockaddr*)&source, sizeof(source)) < 0) {
@@ -251,7 +249,7 @@ void parse_incoming_cl(message m, machine_info* mach, struct sockaddr_in source,
     header.timestamp = (int)time(0);
     header.msg_type = ACK;
     header.status = TRUE;
-    header.about = *mach;
+    header.about = *this_mach;
     ack.header = header;
     if (sendto(s, &ack , sizeof(ack), 0, 
         (struct sockaddr*)&source, sizeof(source)) < 0) {
@@ -284,12 +282,12 @@ void* client_listen(void* input) {
     struct sockaddr_in source;
 
     //wait for a message + update clients every time if message from leader
-    if (receive_message(params->socket, &incoming, &source, params->mach) == FALSE) {
+    if (receive_message(params->socket, &incoming, &source, this_mach) == FALSE) {
       error("Error listening for incoming messages");
     }
 
     //deal with the message
-    parse_incoming_cl(incoming, params->mach, source, params->socket); 
+    parse_incoming_cl(incoming, source, params->socket); 
   }
 
   pthread_exit(0);
@@ -323,22 +321,21 @@ void* sortAndPrint() {
 void* recv_clnt_hb(void *param)
 {
   thread_params* params = (thread_params*)param;
-  machine_info *mach = params->mach;
-  client *this = &mach->others[0];
+  client *this = &this_mach->others[0];
 
   message hb;
   struct sockaddr_in source;
   source.sin_family = AF_INET;
 
   while(!client_trigger) {
-    if(receive_message(params->sock_hb, &hb, &source, mach) == FALSE) {
+    if(receive_message(params->sock_hb, &hb, &source, this_mach) == FALSE) {
       error("Error receiving heartbeat message");
     }
 
     this->recv_count = this->send_count;
 
     hb.header.msg_type = ACK;
-    hb.header.about = *params->mach;
+    hb.header.about = *this_mach;
 
     if (sendto(params->sock_hb, &hb, sizeof(message), 0, 
         (struct sockaddr *)&source, (socklen_t)sizeof(struct sockaddr)) < 0) {
@@ -350,9 +347,7 @@ void* recv_clnt_hb(void *param)
 
 void* check_hb(void *param)
 {
-  thread_params* params = (thread_params*)param;
-  machine_info *mach = params->mach;
-  client *this = &mach->others[0];
+  client *this = &this_mach->others[0];
 
   while(!client_trigger)
   {
@@ -370,16 +365,13 @@ void* check_hb(void *param)
 void* user_input(void *input) {
   pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
 
-  thread_params* params = (thread_params*)input;
-  machine_info *mach = params->mach;
-
   while(!client_trigger) {
     char user_in[BUFSIZE]; //get user input (messages)
     if (scanf("%s", user_in) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       client_trigger = 1;
     } else {
-      msg_request(mach, user_in);
+      msg_request(this_mach, user_in);
     }
   }
 
