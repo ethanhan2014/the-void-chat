@@ -148,6 +148,22 @@ void remove_client_cl(machine_info* update, client remove) {
   }
 }
 
+void remove_leader(machine_info* update) {
+  int i;
+  for (i = 0; i < update->chat_size; i++) {
+    client this = update->others[i];
+
+    if (this.isLeader) {
+      // match found; move all others up by one; for loop exits after this while
+      while (i < update->chat_size) {
+        update->others[i] = update->others[i+1];
+        i++;
+      }
+      update->chat_size--;
+    }
+  }
+}
+
 void update_clients(machine_info* update, machine_info source) {
   memcpy(&(update->others), source.others, MAX_CHAT_SIZE * sizeof(client));
   update->chat_size = source.chat_size;

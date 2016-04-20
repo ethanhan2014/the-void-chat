@@ -96,6 +96,8 @@ void add_client(machine_info* add_to, machine_info add);
 void remove_client_mach(machine_info* update, machine_info remove);
 //same as above but removes based on the given client
 void remove_client_cl(machine_info* update, client remove);
+//removes any client with isLeader = TRUE
+void remove_leader(machine_info* update);
 //changes update's client list to match source's
 void update_clients(machine_info* update, machine_info source);
 
@@ -134,7 +136,7 @@ typedef struct linkedList {
 //this function always adds elements to the end of the list
 int addElement(linkedList *l, int value, char *otherVal, message m);
 
-//this function will remove an element from the list at index idx (where the first is at 0 and the last is at length-1 )
+//this function will remove an element from the list at index idx (where the first is at 0 and the last is at length-1)
 int removeElement(linkedList *l, int idx);
 
 //this will get an element from the list at index i

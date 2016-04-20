@@ -14,6 +14,11 @@
 linkedList *messageQueue;
 int latestSequenceNum;
 
+//shared value - many threads react when this changes to TRUE
+//when it becomes 1, all threads end and the process dies
+//when it becomes 2, all threads but the main one which becomes a sequencer
+int client_trigger;
+
 //kicks off client process
 void client_start(machine_info* mach);
 
@@ -46,6 +51,8 @@ void* client_listen(void* input);
 
 void* sortAndPrint();
 
-void *recv_clnt_hb(void *param);
+void* recv_clnt_hb(void *param);
 
-void *check_hb(void *param);
+void* check_hb(void *param);
+
+void* user_input(void *input);

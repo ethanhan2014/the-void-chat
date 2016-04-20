@@ -32,8 +32,9 @@ int main(int argc, char const *argv[]) {
 
   //establish this machine's information
   machine_info mach = get_machine_info(argv[1]);
+  client_trigger = 0;
 
-  //start a new chat or figure out which one to join
+  //start a new chat or figure out which one to join; INITIAL iteration
   if (argc == 2) {
     mach.isLeader = TRUE;
 
@@ -44,6 +45,18 @@ int main(int argc, char const *argv[]) {
     mach.host_port = port;
 
     client_start(&mach);
+  }
+
+  //after initial iteration, become sequencer if client_trigger was made 2
+  //otherwise, we just go past and finish since it is 1 to indicate the user
+  //exitted with ctrl-d
+  if (client_trigger == 2) {
+    printf("Changing to sequencer instead of client due to election\n\n");
+
+    mach.isLeader = TRUE;
+    client_trigger = 0;
+
+    sequencer_start(&mach);
   }
   
   return 0;

@@ -62,7 +62,8 @@ void client_start(machine_info* mach) {
   //we have leader info inside of host_attempt message now
   client_loop(mach, s, hb);
 
-  //cleanup
+
+  //*** CLEANUP ***//
   close(s); //close sockets
   close(hb);
 
@@ -108,16 +109,20 @@ void client_loop(machine_info* mach, int s, int hb) {
     exit(1);
   }
 
-  //loop waiting for user input
-  int done = FALSE;
-  while (!done) {
-    char input[BUFSIZE]; //get user input (messages)
-    if (scanf("%s", input) == EOF) {
-      //on ctrl-d (EOF), kill this program instead of interpreting input
-      done = TRUE;
-    } else {
-      msg_request(mach, input);
-    }
+  pthread_t input_thread;
+  if (pthread_create(&input_thread, NULL, user_input, &params)) {
+    perror("Error making user input thread");
+    exit(1);
+  }
+
+  //loop waiting for trigger, then transform if necessary
+  while (!client_trigger);
+  if (client_trigger == 2) { //transform
+    //first force kill user_input since it might be stuck on scanf or socket input
+    pthread_cancel(input_thread);
+
+    //remove leader
+    remove_leader(mach);
   }
 }
 
@@ -274,7 +279,7 @@ int receive_message(int s, message* m, struct sockaddr_in* source,
 void* client_listen(void* input) {
   thread_params* params = (thread_params*)input;
 
-  while (1) {
+  while (!client_trigger) {
     message incoming;
     struct sockaddr_in source;
 
@@ -291,7 +296,7 @@ void* client_listen(void* input) {
 }
 
 void* sortAndPrint() {
-  while (1) {
+  while (!client_trigger) {
     //we simply find the next one in the sequence if we can
     //otherwise, we hold
     int i = 0;
@@ -315,7 +320,7 @@ void* sortAndPrint() {
   pthread_exit(0);
 }
 
-void *recv_clnt_hb(void *param)
+void* recv_clnt_hb(void *param)
 {
   thread_params* params = (thread_params*)param;
   machine_info *mach = params->mach;
@@ -325,7 +330,7 @@ void *recv_clnt_hb(void *param)
   struct sockaddr_in source;
   source.sin_family = AF_INET;
 
-  while(1) {
+  while(!client_trigger) {
     if(receive_message(params->sock_hb, &hb, &source, mach) == FALSE) {
       error("Error receiving heartbeat message");
     }
@@ -343,21 +348,40 @@ void *recv_clnt_hb(void *param)
   pthread_exit(0);
 }
 
-void *check_hb(void *param)
+void* check_hb(void *param)
 {
   thread_params* params = (thread_params*)param;
   machine_info *mach = params->mach;
   client *this = &mach->others[0];
 
-  while(1)
+  while(!client_trigger)
   {
     if(this->send_count - this->recv_count > 3)
     {
-      printf("we notice leader is dead...\n");
+      client_trigger = 2;
       //TODO hold leader election...
     }
     waitFor(3);
     this->send_count++;
   }
+  pthread_exit(0);
+}
+
+void* user_input(void *input) {
+  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
+
+  thread_params* params = (thread_params*)input;
+  machine_info *mach = params->mach;
+
+  while(!client_trigger) {
+    char user_in[BUFSIZE]; //get user input (messages)
+    if (scanf("%s", user_in) == EOF) {
+      //on ctrl-d (EOF), kill this program instead of interpreting input
+      client_trigger = 1;
+    } else {
+      msg_request(mach, user_in);
+    }
+  }
+
   pthread_exit(0);
 }
