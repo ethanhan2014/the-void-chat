@@ -14,10 +14,14 @@
 linkedList *client_queue;
 int latestSequenceNum;
 
+linkedList* outgoing_queue;
+
 //shared value - many threads react when this changes to TRUE
 //when it becomes 1, all threads end and the process dies
 //when it becomes 2, all threads but the main one which becomes a sequencer
 int client_trigger;
+
+float slow_factor;
 
 //kicks off client process
 void client_start();
@@ -28,7 +32,7 @@ message join_request(machine_info* mach);
 
 //sends a message (from the user input) to current leader
 //returns the response from the server
-message msg_request(machine_info* mach, char msg[BUFSIZE]);
+message msg_request(machine_info* mach, message m);
 
 //enters main client loop, given this machine's info, socket s we listen on
 void client_loop(int s, int hb);
@@ -55,3 +59,5 @@ void* recv_clnt_hb(void *param);
 void* check_hb(void *param);
 
 void* user_input(void *input);
+
+void* send_out_input(void* input);

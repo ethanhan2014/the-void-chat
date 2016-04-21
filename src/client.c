@@ -29,6 +29,10 @@ void client_start() {
 
   client_queue = (linkedList *) malloc(sizeof(linkedList));
   client_queue->length = 0;
+  outgoing_queue = (linkedList *) malloc(sizeof(linkedList));
+  outgoing_queue->length = 0;
+
+  slow_factor = 0;
 
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", this_mach->name, 
     this_mach->host_ip, this_mach->host_port, this_mach->ipaddr, this_mach->portno);
@@ -60,7 +64,7 @@ void client_start() {
   close(s); //close sockets
   close(hb);
 
-  //clear queue if not empty
+  //clear queues if not empty
   node* curr = client_queue->head;
   node* next = NULL;
   while (curr != NULL) {
@@ -69,6 +73,15 @@ void client_start() {
     curr = next;
   }
   free(client_queue);
+
+  curr = outgoing_queue->head;
+  next = NULL;
+  while (curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(outgoing_queue);
 }
 
 void client_loop(int s, int hb) {
@@ -107,6 +120,12 @@ void client_loop(int s, int hb) {
     exit(1);
   }
 
+  pthread_t msg_out_thread;
+  if (pthread_create(&msg_out_thread, NULL, send_out_input, &params)){
+    perror("Error making message sender thread");
+    exit(1);
+  }
+
   //loop waiting for trigger, then transform if necessary
   while (!client_trigger);
   if (client_trigger == 2) { //transform
@@ -126,7 +145,7 @@ message join_request(machine_info* mach) {
   }
   //give socket a timeout
   struct timeval timeout;
-  timeout.tv_sec = 1;
+  timeout.tv_sec = 3;
   timeout.tv_usec = 0;
   if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
     perror("Error setting socket timeout parameter");
@@ -167,29 +186,19 @@ message join_request(machine_info* mach) {
   return response;
 }
 
-message msg_request(machine_info* mach, char msg[BUFSIZE]) {
+message msg_request(machine_info* mach, message m) {
   int s; //the socket
   if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     perror("Error making socket to send message");
     exit(1);
   }
   //give socket a timeout
-  struct timeval timeout;
-  timeout.tv_sec = 1;
+  /*struct timeval timeout;
+  timeout.tv_sec = 3;
   timeout.tv_usec = 0;
   if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
     perror("Error setting socket timeout parameter");
-  }
-
-  //make message to send
-  message text_msg;
-  msg_header header;
-  header.timestamp = (int)time(0);
-  header.msg_type = MSG_REQ;
-  header.status = TRUE;
-  header.about = *mach;
-  text_msg.header = header;
-  strcpy(text_msg.content, msg);
+  }*/
 
   //setup host info to connect to/send message to
   struct sockaddr_in server;
@@ -197,7 +206,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
   server.sin_addr.s_addr = inet_addr(mach->host_ip);
   server.sin_port = htons(mach->host_port);
 
-  if (sendto(s, &text_msg, sizeof(message), 0, (struct sockaddr *)&server, 
+  if (sendto(s, &m, sizeof(message), 0, (struct sockaddr *)&server, 
       (socklen_t)sizeof(struct sockaddr)) < 0) {
     perror("No chat active at this address, try again later");
     exit(1);
@@ -233,6 +242,10 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       perror("Error responding to client with host info");
       exit(1);
     }
+  } else if (m.header.msg_type == CTRL_SLOW) {
+    slow_factor = atof(m.content);
+  } else if (m.header.msg_type == CTRL_STOP) {
+    slow_factor = 0;
   } else {
     addElement(client_queue, m.header.seq_num, "", m);
 
@@ -294,23 +307,17 @@ void* sortAndPrint() {
     //we simply find the next one in the sequence if we can
     //otherwise, we hold
     int i = 0;
-    int found = FALSE;
     for (i = 0; i < client_queue->length; i++) {
       if (getElement(client_queue, i)->v == latestSequenceNum + 1) {
-        found = TRUE;
-        break;
+        print_message(getElement(client_queue, i)->m);
+        removeElement(client_queue, i);
+        latestSequenceNum++;
+
+        i = client_queue->length;
       }
     }
-    //we found the message
-    if (found) {
-      print_message(getElement(client_queue, i)->m);
-      removeElement(client_queue, i);
-      latestSequenceNum++;
-    }
-    else { //well, we didn't find it, so we gotta wait
-      //printf("Message missing\n");
-    }
   }
+
   pthread_exit(0);
 }
 
@@ -367,7 +374,33 @@ void* user_input(void *input) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       client_trigger = 1;
     } else {
-      msg_request(this_mach, user_in);
+      //form input as a msg
+      message text_msg;
+      msg_header header;
+      header.timestamp = (int)time(0);
+      header.msg_type = MSG_REQ;
+      header.status = TRUE;
+      header.about = *this_mach;
+      text_msg.header = header;
+      strcpy(text_msg.content, user_in);
+
+      addElement(outgoing_queue, 0, "NO", text_msg);
+    }
+  }
+
+  pthread_exit(0);
+}
+
+void* send_out_input(void* input) {
+  while (!client_trigger) {
+    //prevent msgs from going out for a little
+    if (slow_factor >= 0.001f) {
+      waitFor(slow_factor);
+    }
+
+    if (outgoing_queue->length > 0) {
+      msg_request(this_mach, outgoing_queue->head->m);
+      removeElement(outgoing_queue, 0);
     }
   }
 

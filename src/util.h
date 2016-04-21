@@ -6,7 +6,7 @@
 #include <netdb.h>
 
 #define BUFSIZE 1024
-#define MAX_CHAT_SIZE 20
+#define MAX_CHAT_SIZE 10
 #define TRUE 1
 #define FALSE 0
 
@@ -20,11 +20,18 @@
 #define NEWLEADER 9
 #define NEW_USER 10
 #define LEAVE 11
+#define CTRL_SLOW 12
+#define CTRL_STOP 13
+
+//traffic control
+#define NUM_TIMES_TRACKED 10
+#define CTRL_THRESH 1.5
 
 
 // *** STRUCT FORMATS *** //
-//for messages between machines
 
+//for messages between machines
+typedef struct linkedList linkedList;
 typedef struct client {
   char name[BUFSIZE];
   char ipaddr[BUFSIZE];
@@ -34,9 +41,12 @@ typedef struct client {
   int recv_count; //used for heartbeat count
   int send_count; //used for heartbeat count
 
+  linkedList* msg_times; //diff between last 10 incoming messages for this client
+  int* last_time; //time of most recent incoming message
+  float* slow_factor;
 } client;
 
-
+//actual payload data
 typedef struct machine_info {
   char ipaddr[BUFSIZE];   // ip address of member
   int portno;             // port number
@@ -62,6 +72,18 @@ typedef struct messages {
   msg_header header;      //header information contains information about individual machine
   char content[BUFSIZE];  // contains the chatting information 
 } message;
+
+//linked list
+typedef struct node {
+  struct node *next;
+  int v;
+  char *value;
+  message m;
+} node;
+struct linkedList {
+  node *head;
+  int length;
+};
 
 //for thread parameters
 typedef struct thread_params {
@@ -122,21 +144,7 @@ void print_message(message m);
 void error(char* m);
 
 
-//we define a linked list that has a node with a pointer to the next node in the list
-//it also contains the data for the message
-typedef struct node {
-  struct node *next;
-  int v;
-  char *value;
-  message m;
-} node;
-
-
-//the linked list struct will also contain data on the first element in the list and the length of the
-typedef struct linkedList {
-  node *head;
-  int length;
-} linkedList;
+// ** LINKED LIST FUNCTIONS ** //
 
 //this will add an element to the list
 //this function always adds elements to the end of the list
@@ -149,8 +157,8 @@ int removeElement(linkedList *l, int idx);
 //if i is greater than the length, it will return NULL
 node *getElement(linkedList *l, int i);
 
-//this will return teh first element of the list
+//this will return the first element of the list
 node *seeTop(linkedList *l);
 
-/* wait for certain number of seconds*/
+// wait for certain number of seconds
 void waitFor (unsigned int secs);

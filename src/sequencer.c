@@ -40,8 +40,27 @@ void sequencer_start() {
 
   sequencer_loop(s, hb);
   
+  // ** CLEANUP ** //
   close(s);
   close(hb);
+
+  int i;
+  for (i = 0; i < this_mach->chat_size; i++) {
+    client this = this_mach->others[i];
+
+    node* curr = this.msg_times->head;
+    node* next = NULL;
+    while (curr != NULL) {
+      next = curr->next;
+      free(curr);
+      curr = next;
+    }
+    free(this.msg_times);
+    free(this.last_time);
+    free(this.slow_factor);
+  }
+
+  free(sequencer_queue);
 }
 
 void sequencer_loop(int s, int hb) {
@@ -88,6 +107,7 @@ void sequencer_loop(int s, int hb) {
       header.msg_type = MSG_REQ;
       header.status = TRUE;
       header.about = *this_mach;
+      header.seq_num = currentSequenceNum;
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", this_mach->name, input);
 
@@ -104,7 +124,8 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     join_msg.header.timestamp = (int)time(0);
     join_msg.header.msg_type = NEW_USER;
     join_msg.header.status = TRUE;
-    join_msg.header.about = *this_mach;
+    join_msg.header.about = m.header.about;
+    join_msg.header.seq_num = currentSequenceNum;
     sprintf(join_msg.content, "NOTICE %s joined on %s:%d", 
       m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
 
@@ -137,10 +158,15 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     text_msg.header.msg_type = MSG_REQ;
     text_msg.header.status = TRUE;
     text_msg.header.about = *this_mach;
+    text_msg.header.seq_num = currentSequenceNum;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
 
+    //add to queue to send out
     addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
     currentSequenceNum++;
+
+    //perform traffic control if necessary
+    traffic_control(m);
   }
 }
 
@@ -170,6 +196,13 @@ void broadcast_message(message m) {
     //might be yourself; just print it then
     if (this.isLeader) {
       print_message(m);
+    } else if (m.header.msg_type == NEW_USER 
+        && strcmp(m.header.about.name, this.name) == 0 
+        && strcmp(m.header.about.ipaddr, this.ipaddr) == 0 
+        && m.header.about.portno == this.portno 
+        && m.header.about.isLeader == this.isLeader) { 
+      //might be the client who just joined! (skip it)
+      //notifying of own join is bad (TRUST ME)
     } else {
       server.sin_addr.s_addr = inet_addr(this.ipaddr);
       server.sin_port = htons(this.portno);
@@ -202,6 +235,101 @@ void broadcast_message(message m) {
   close(o);
 }
 
+void traffic_control(message m) {
+  //update data for this message first
+  int i;
+  client this;
+  for (i = 0; i < this_mach->chat_size; i++) {
+    //first find the client we care about in others data
+    this = this_mach->others[i];
+    if (strcmp(m.header.about.name, this.name) == 0 
+        && strcmp(m.header.about.ipaddr, this.ipaddr) == 0 
+        && m.header.about.portno == this.portno 
+        && m.header.about.isLeader == this.isLeader) {
+      //found him
+      i = this_mach->chat_size;
+    }
+  }
+
+  //only track up to 10 time diffs at once
+  if (this.msg_times->length >= 10) {
+    removeElement(this.msg_times, 0);
+  }
+  addElement(this.msg_times, ((int)time(0) - 
+            (*this.last_time == -1 ? (int)time(0) : *this.last_time)), 
+    "NO", m);
+  *this.last_time = (int)time(0);
+
+  //now check average time diff between (up to) last 10 msgs from client
+  node* curr = this.msg_times->head;
+  float avg = 0;
+  while (curr != NULL) {
+    avg += curr->v;
+    curr = curr->next;
+  }
+  avg /= (float)this.msg_times->length;
+
+  //if avg is too low, send out a notice to client to be quiet
+  if ((avg < CTRL_THRESH && *this.slow_factor <= 0.001f) 
+      || (*this.slow_factor > 0.001f && avg > CTRL_THRESH)) {
+    int s; //the socket
+    if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+      perror("Error making socket to send message");
+      exit(1);
+    }
+
+    //give socket a timeout
+    struct timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+      perror("Error setting socket timeout parameter");
+      exit(1);
+    }
+
+    //setup host info to connect to/send message to
+    char ip_copy[BUFSIZE]; //inet_addr changes ip(?)... use a copy of it to avoid
+    strcpy(ip_copy, this.ipaddr); 
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = inet_addr(ip_copy);
+    server.sin_port = htons(this.portno);
+
+    //send a slow down message when avg is too low
+    message out;
+    if (avg < CTRL_THRESH && *this.slow_factor <= 0.001f) {
+      *this.slow_factor = (1.0f/(CTRL_THRESH - avg) > 3.0f ? 3.0f 
+        : 1.0f/(CTRL_THRESH - avg));
+      //make slow down message
+      msg_header header;
+      header.timestamp = (int)time(0);
+      header.msg_type = CTRL_SLOW;
+      header.status = TRUE;
+      header.about = *this_mach;
+      out.header = header;
+      sprintf(out.content, "%f", *this.slow_factor);
+    } else {
+      //otherwise if avg is good and we notice client was being slowed before, remove slowing
+      msg_header header;
+      header.timestamp = (int)time(0);
+      header.msg_type = CTRL_STOP;
+      header.status = TRUE;
+      header.about = *this_mach;
+      out.header = header;
+
+      *this.slow_factor = 0;
+    }
+
+    if (sendto(s, &out, sizeof(message), 0, (struct sockaddr *)&server, 
+        (socklen_t)sizeof(struct sockaddr)) < 0) {
+      perror("No chat active at this address, try again later");
+      exit(1);
+    }
+
+    close(s);
+  }
+}
+
 void* sequencer_listen(void* input) {
   thread_params* params = (thread_params*)input;
 
@@ -225,13 +353,9 @@ void* sequencer_listen(void* input) {
 
 void* sequencer_send_queue(void* input) {
   while (1) {
-    int i = 0;
-    for (i = 0; i < sequencer_queue->length; i++) {
-      node *c = getElement(sequencer_queue, i);
-      c->m.header.seq_num = c->v;
-
-      broadcast_message(getElement(sequencer_queue, i)->m);
-      removeElement(sequencer_queue, i);
+    if (sequencer_queue->length > 0) {
+      broadcast_message(sequencer_queue->head->m);
+      removeElement(sequencer_queue, 0);
     }
   }
 
@@ -276,6 +400,7 @@ void* send_hb(void *param)
           leave_notice.header.msg_type = LEAVE;
           leave_notice.header.status = TRUE;
           leave_notice.header.about = *this_mach;
+          leave_notice.header.seq_num = currentSequenceNum;
           sprintf(leave_notice.content, "NOTICE %s left the chat or crashed",
             this->name);
           addElement(sequencer_queue, currentSequenceNum, "NO", leave_notice);

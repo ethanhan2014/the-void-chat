@@ -61,6 +61,8 @@ int main(int argc, char const *argv[]) {
 
     sequencer_start();
   }
+
+  free(this_mach);
   
   return 0;
 }

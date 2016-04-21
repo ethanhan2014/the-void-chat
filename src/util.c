@@ -114,6 +114,12 @@ void add_client(machine_info* add_to, machine_info add) {
     new.isLeader = add.isLeader;
     new.send_count = 0;
     new.recv_count = 0;
+    new.msg_times = (linkedList*)malloc(sizeof(linkedList));
+    new.msg_times->length = 0;
+    new.last_time = (int*)malloc(sizeof(int));
+    *new.last_time = (int)time(0);
+    new.slow_factor = (float*)malloc(sizeof(float));
+    *new.slow_factor = 0.0f;
 
     add_to->others[add_to->chat_size] = new;
     add_to->chat_size++;
@@ -129,7 +135,19 @@ void remove_client_mach(machine_info* update, machine_info remove) {
         && strcmp(this.ipaddr, remove.ipaddr) == 0 
         && this.portno == remove.portno 
         && this.isLeader == remove.isLeader) {
-      // match found; move all others up by one; for loop exits after this while
+      //free up memory first
+      node* curr = this.msg_times->head;
+      node* next = NULL;
+      while (curr != NULL) {
+        next = curr->next;
+        free(curr);
+        curr = next;
+      }
+      free(this.msg_times);
+      free(this.last_time);
+      free(this.slow_factor);
+
+      // move all others up by one; for loop exits after this while
       while (i < update->chat_size) {
         update->others[i] = update->others[i+1];
         i++;
@@ -148,7 +166,19 @@ void remove_client_cl(machine_info* update, client remove) {
         && strcmp(this.ipaddr, remove.ipaddr) == 0 
         && this.portno == remove.portno 
         && this.isLeader == remove.isLeader) {
-      // match found; move all others up by one; for loop exits after this while
+      //free up memory first
+      node* curr = this.msg_times->head;
+      node* next = NULL;
+      while (curr != NULL) {
+        next = curr->next;
+        free(curr);
+        curr = next;
+      }
+      free(this.msg_times);
+      free(this.last_time);
+      free(this.slow_factor);
+
+      // move all others up by one; for loop exits after this while
       while (i < update->chat_size) {
         update->others[i] = update->others[i+1];
         i++;
@@ -164,7 +194,7 @@ void remove_leader(machine_info* update) {
     client this = update->others[i];
 
     if (this.isLeader) {
-      // match found; move all others up by one; for loop exits after this while
+      // move all others up by one; for loop exits after this while
       while (i < update->chat_size) {
         update->others[i] = update->others[i+1];
         i++;
@@ -188,10 +218,6 @@ void respond_to(int s, message* m, struct sockaddr_in source) {
 }
 
 void print_message(message m) {
-  if (!m.header.about.isLeader) {
-    error("attempt to print a message not from the leader");
-  }
-
   if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER
       || m.header.msg_type == LEAVE) {
     printf("%s\n", m.content);
@@ -206,26 +232,27 @@ void error(char* m) {
 }
 
 int addElement(linkedList *l, int value, char *otherVal, message m) {
-  //printf("Entering add\n");
   if (l == NULL) {
-    //printf("List is null, exiting\n");
     return 1;
   }
-  //printf("Going into main body\n");
+
   node *addNode = (node *)malloc(sizeof(node));
   addNode->v = value;
   addNode->value = otherVal;
   addNode->m = m;
+  addNode->next = NULL;
   if (l->length == 0) {
     l->head = addNode;
     l->length++;
     return 0;
   }
+
   int i = 0;
   node *current = l->head;
   for (i = 0; i < l->length - 1; i++) {
     current = current->next;
   }
+
   current->next = addNode;
   l->length++;
   return 0;
@@ -240,7 +267,13 @@ int removeElement(linkedList *l, int idx) {
   //first element case
   if (idx == 0) {
     node* head = l->head;
-    l->head = l->head->next;
+    //singleton case
+    if (l->length == 1) {
+      l->head = NULL;
+    } else {
+      l->head = l->head->next;
+    }
+
     free(head);
     l->length--;
     return 0;
@@ -255,7 +288,7 @@ int removeElement(linkedList *l, int idx) {
   }
 
   node* removal = curr->next; //update pointers and list length
-  curr->next = removal->next;
+  curr->next = (i == l->length-1 ? NULL : removal->next);
   free(removal);
   l->length--;
   return 0;
@@ -265,16 +298,14 @@ node *getElement(linkedList *l, int i) {
   if (i >= l->length) {
     return NULL;
   }
-  //printf("Past the null issue\n");
-  int n = 0;
+
+  int n;
   node *current = l->head;
-  //printf("starting search loop\n");
   for (n = 0; n < i; n++) {
     current = current->next;
   }
-  //printf("Found the node\n");
-  node *removal = current;
-  return removal;
+
+  return current;
 }
 
 node *seeTop(linkedList *l) {
