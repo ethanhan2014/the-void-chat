@@ -93,9 +93,10 @@ void set_machine_info(char const *name);
 //creates and binds a socket on the ip of the provided machine_info struct
 //also updates provided machine_info with the port we assign to
 //socket gets returned as an int 
-int open_socket(machine_info* mach);
+int open_listener_socket(machine_info* mach);
 
 //updates add_to's client list by adding a client with add's information
+//note this also checks to see if client is already present; will not add twice
 void add_client(machine_info* add_to, machine_info add);
 //remove the client that corresponds to remove from update's client list
 void remove_client_mach(machine_info* update, machine_info remove);

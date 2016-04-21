@@ -3,7 +3,7 @@
 #include "util.h"
 
 
-linkedList *messagesQueue;
+linkedList *sequencer_queue;
 int currentSequenceNum;
 
 void sequencer_start();

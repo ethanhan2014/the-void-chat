@@ -12,10 +12,10 @@
 #include "client.h"
 
 void client_start() {
-  int s = open_socket(this_mach);
+  // setup socket for listening
+  int s = open_listener_socket(this_mach);
 
-  /* ************************************* */
-  /* ******create heartbeat socket ******* */
+  // setup socket for heartbeat
   int hb = socket(AF_INET, SOCK_DGRAM, 0);
   struct sockaddr_in hb_receiver;
   bzero((char *) &hb_receiver, sizeof(hb_receiver));
@@ -26,16 +26,9 @@ void client_start() {
     perror("Error binding listener socket");
     exit(1);
   }
-  // struct timeval timeout;
-  // timeout.tv_sec = 2;
-  // timeout.tv_usec = 0;
-  // if (setsockopt(hb, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
-  //   error("Error setting socket timeout parameter");
-  // }
-  /* ************************************* */
 
-  messageQueue = (linkedList *) malloc(sizeof(linkedList));
-  messageQueue->length = 0;
+  client_queue = (linkedList *) malloc(sizeof(linkedList));
+  client_queue->length = 0;
 
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", this_mach->name, 
     this_mach->host_ip, this_mach->host_port, this_mach->ipaddr, this_mach->portno);
@@ -68,14 +61,14 @@ void client_start() {
   close(hb);
 
   //clear queue if not empty
-  node* curr = messageQueue->head;
+  node* curr = client_queue->head;
   node* next = NULL;
   while (curr != NULL) {
     next = curr->next;
     free(curr);
     curr = next;
   }
-  free(messageQueue);
+  free(client_queue);
 }
 
 void client_loop(int s, int hb) {
@@ -222,7 +215,7 @@ message msg_request(machine_info* mach, char msg[BUFSIZE]) {
 }
 
 void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
-  if (m.header.msg_type == JOIN_REQ) {
+  if (m.header.msg_type == JOIN_REQ) { //other client trying to connect
     //pack up a response message
     message respond_join;
     msg_header header;
@@ -232,7 +225,8 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
     header.about = *this_mach;
     respond_join.header = header;
 
-    sprintf(respond_join.content, "%s:%d", this_mach->host_ip, this_mach->host_port);
+    sprintf(respond_join.content, "%s:%d", this_mach->host_ip, 
+      this_mach->host_port);
 
     if (sendto(s, &respond_join , sizeof(respond_join), 0, 
         (struct sockaddr*)&source, sizeof(source)) < 0) {
@@ -240,10 +234,9 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       exit(1);
     }
   } else {
-    //add this to a temp buff and sort it somewhere else
-    addElement(messageQueue, m.header.seq_num, "", m);
+    addElement(client_queue, m.header.seq_num, "", m);
 
-    //also ack the message and let sequencer know it was received
+    // ack the message and let sequencer know it was received
     message ack;
     msg_header header;
     header.timestamp = (int)time(0);
@@ -256,6 +249,13 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       perror("Error responding to client with ACK");
       exit(1);
     }
+
+    // above means we print out these messages, do any specific other operations
+    if (m.header.msg_type == NEW_USER) {
+      add_client(this_mach, m.header.about);
+    } else if (m.header.msg_type == LEAVE) {
+      remove_client_mach(this_mach, m.header.about);
+    }
   }
 }
 
@@ -265,10 +265,6 @@ int receive_message(int s, message* m, struct sockaddr_in* source,
   if (recvfrom(s, m, sizeof(message), 0, (struct sockaddr*)source, 
       &sourcelen) < 0) {
     return FALSE;
-  }
-
-  if (m->header.about.isLeader) {
-    update_clients(mach, m->header.about);
   }
 
   return TRUE;
@@ -299,16 +295,16 @@ void* sortAndPrint() {
     //otherwise, we hold
     int i = 0;
     int found = FALSE;
-    for (i = 0; i < messageQueue->length; i++) {
-      if (getElement(messageQueue, i)->v == latestSequenceNum + 1) {
+    for (i = 0; i < client_queue->length; i++) {
+      if (getElement(client_queue, i)->v == latestSequenceNum + 1) {
         found = TRUE;
         break;
       }
     }
     //we found the message
     if (found) {
-      print_message(getElement(messageQueue, i)->m);
-      removeElement(messageQueue, i);
+      print_message(getElement(client_queue, i)->m);
+      removeElement(client_queue, i);
       latestSequenceNum++;
     }
     else { //well, we didn't find it, so we gotta wait

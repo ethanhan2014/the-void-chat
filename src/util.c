@@ -62,7 +62,7 @@ void set_machine_info(char const *name) {
   this_mach->current_sequence_num = 0; //(for now)
 }
 
-int open_socket(machine_info* mach) {
+int open_listener_socket(machine_info* mach) {
   //start listening on your ip/port, and change portno if not open
   int s; // the socket
   if((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -92,18 +92,32 @@ int open_socket(machine_info* mach) {
 }
 
 void add_client(machine_info* add_to, machine_info add) {
-  client new;
-  strcpy(new.name, add.name);
-  strcpy(new.ipaddr, add.ipaddr);
-  new.portno = add.portno;
-  new.isLeader = add.isLeader;
-  new.send_count = 0;
-  new.recv_count = 0;
+  int found = FALSE;
+  int i;
+  for (i = 0; i < add_to->chat_size; i++) {
+    client this = add_to->others[i];
 
-  add_to->others[add_to->chat_size] = new;
-  add_to->chat_size++;
+    if (strcmp(this.name, add.name) == 0 
+        && strcmp(this.ipaddr, add.ipaddr) == 0 
+        && this.portno == add.portno 
+        && this.isLeader == add.isLeader) {
+      found = TRUE;
+      i = add_to->chat_size;
+    }
+  }
 
+  if (!found) {
+    client new;
+    strcpy(new.name, add.name);
+    strcpy(new.ipaddr, add.ipaddr);
+    new.portno = add.portno;
+    new.isLeader = add.isLeader;
+    new.send_count = 0;
+    new.recv_count = 0;
 
+    add_to->others[add_to->chat_size] = new;
+    add_to->chat_size++;
+  }
 }
 
 void remove_client_mach(machine_info* update, machine_info remove) {
@@ -178,7 +192,8 @@ void print_message(message m) {
     error("attempt to print a message not from the leader");
   }
 
-  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER) {
+  if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER
+      || m.header.msg_type == LEAVE) {
     printf("%s\n", m.content);
   } else {
     error("attempt to print a message type that is not allowed");

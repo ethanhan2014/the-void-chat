@@ -11,7 +11,7 @@
 
 #include "util.h"
 
-linkedList *messageQueue;
+linkedList *client_queue;
 int latestSequenceNum;
 
 //shared value - many threads react when this changes to TRUE
