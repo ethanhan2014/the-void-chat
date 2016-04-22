@@ -32,6 +32,8 @@ void client_start() {
   outgoing_queue = (linkedList *) malloc(sizeof(linkedList));
   outgoing_queue->length = 0;
 
+  slow_factor = 0;
+
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", this_mach->name, 
     this_mach->host_ip, this_mach->host_port, this_mach->ipaddr, this_mach->portno);
   message host_attempt = join_request(this_mach);
@@ -240,6 +242,10 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       perror("Error responding to client with host info");
       exit(1);
     }
+  } else if (m.header.msg_type == CTRL_SLOW) {
+    slow_factor = atof(m.content);
+  } else if (m.header.msg_type == CTRL_STOP) {
+    slow_factor = 0;
   } else {
     addElement(client_queue, m.header.seq_num, "", m);
 
@@ -387,6 +393,11 @@ void* user_input(void *input) {
 
 void* send_out_input(void* input) {
   while (!client_trigger) {
+    //prevent msgs from going out for a little
+    if (slow_factor >= 0.001f) {
+      waitFor(slow_factor);
+    }
+
     if (outgoing_queue->length > 0) {
       msg_request(this_mach, outgoing_queue->head->m);
       removeElement(outgoing_queue, 0);

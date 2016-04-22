@@ -21,6 +21,8 @@ linkedList* outgoing_queue;
 //when it becomes 2, all threads but the main one which becomes a sequencer
 int client_trigger;
 
+float slow_factor;
+
 //kicks off client process
 void client_start();
 

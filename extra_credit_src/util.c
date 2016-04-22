@@ -114,6 +114,12 @@ void add_client(machine_info* add_to, machine_info add) {
     new.isLeader = add.isLeader;
     new.send_count = 0;
     new.recv_count = 0;
+    new.msg_times = (linkedList*)malloc(sizeof(linkedList));
+    new.msg_times->length = 0;
+    new.last_time = (int*)malloc(sizeof(int));
+    *new.last_time = (int)time(0);
+    new.slow_factor = (float*)malloc(sizeof(float));
+    *new.slow_factor = 0.0f;
 
     add_to->others[add_to->chat_size] = new;
     add_to->chat_size++;
@@ -148,6 +154,18 @@ void remove_client_cl(machine_info* update, client remove) {
         && strcmp(this.ipaddr, remove.ipaddr) == 0 
         && this.portno == remove.portno 
         && this.isLeader == remove.isLeader) {
+      //free up memory first
+      node* curr = this.msg_times->head;
+      node* next = NULL;
+      while (curr != NULL) {
+        next = curr->next;
+        free(curr);
+        curr = next;
+      }
+      free(this.msg_times);
+      free(this.last_time);
+      free(this.slow_factor);
+
       // move all others up by one; for loop exits after this while
       while (i < update->chat_size) {
         update->others[i] = update->others[i+1];
@@ -164,6 +182,18 @@ void remove_leader(machine_info* update) {
     client this = update->others[i];
 
     if (this.isLeader) {
+      //free up memory first
+      node* curr = this.msg_times->head;
+      node* next = NULL;
+      while (curr != NULL) {
+        next = curr->next;
+        free(curr);
+        curr = next;
+      }
+      free(this.msg_times);
+      free(this.last_time);
+      free(this.slow_factor);
+
       // move all others up by one; for loop exits after this while
       while (i < update->chat_size) {
         update->others[i] = update->others[i+1];

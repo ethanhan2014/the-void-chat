@@ -18,6 +18,9 @@ void sequencer_loop(int s, int hb);
 //(assumes mach is a leader)
 void broadcast_message(message m);
 
+//performs traffic control given a message m from some client 
+void traffic_control(message m);
+
 // *** THREAD FUNCTIONS *** //
 // listens on the provided socket
 void* sequencer_listen(void* input);
