@@ -118,7 +118,10 @@ void sequencer_loop(int s, int hb) {
       header.seq_num = currentSequenceNum;
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", this_mach->name, input);
-
+      int n = 0;
+      for (n = 0; n < BUFSIZE; n++) {
+        text_msg.content[n] += 7;
+      }
       addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
       currentSequenceNum++;
     }
@@ -150,6 +153,10 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     response.header.about = *this_mach;
     respond_to(s, &response, source);
   } else if (m.header.msg_type == MSG_REQ) {
+    int n = 0;
+    for (n = 0; n < BUFSIZE; n++) {
+      m.content[n] -= 7;
+    }
     //respond to the original message
     message response;
     msg_header header;
@@ -168,6 +175,11 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     text_msg.header.about = *this_mach;
     text_msg.header.seq_num = currentSequenceNum;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
+    n = 0;
+    for (n = 0; n < BUFSIZE; n++) {
+      text_msg.content[n] += 7;
+    }
+    
 
     //add to queue to send out
     addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
@@ -203,7 +215,12 @@ void broadcast_message(message m) {
 
     //might be yourself; just print it then
     if (this.isLeader) {
-      print_message(m);
+      message thisOne = m;
+      int n = 0;
+      for (n = 0; n < BUFSIZE; n++) {
+        thisOne.content[n] -= 7;
+      }
+      print_message(thisOne);
     } else if (m.header.msg_type == NEW_USER 
         && strcmp(m.header.about.name, this.name) == 0 
         && strcmp(m.header.about.ipaddr, this.ipaddr) == 0 

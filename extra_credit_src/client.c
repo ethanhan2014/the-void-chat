@@ -199,6 +199,10 @@ message msg_request(machine_info* mach, message m) {
   if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
     perror("Error setting socket timeout parameter");
   }*/
+  int n = 0;
+  for (n = 0; n < BUFSIZE; n++) {
+    m.content[n] += 7;
+  }
 
   //setup host info to connect to/send message to
   struct sockaddr_in server;
@@ -309,6 +313,10 @@ void* sortAndPrint() {
     int i = 0;
     for (i = 0; i < client_queue->length; i++) {
       if (getElement(client_queue, i)->v == latestSequenceNum + 1) {
+        int n = 0;
+        for (n = 0; n < BUFSIZE; n++) {
+          getElement(client_queue, i)->m.content[n] -= 7;
+        }
         print_message(getElement(client_queue, i)->m);
         removeElement(client_queue, i);
         latestSequenceNum++;
