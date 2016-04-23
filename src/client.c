@@ -57,32 +57,44 @@ void client_start() {
   printf("Succeeded, current users:\n");
   print_users(this_mach);
 
+  //election initialization
+  hold_election = 0;
+  pthread_mutex_init(&election_lock, NULL);
+  pthread_mutex_init(&no_election_lock, NULL);
+
   //we have leader info inside of host_attempt message now
   client_loop(s, hb);
 
 
-  //*** CLEANUP ***//
-  close(s); //close sockets
-  close(hb);
+  /*******************************
+  *
+  * The part below caused potential segmentation fault. 
+  * TODO:: needs a fix here
+  *
+  ********************************/
 
-  //clear queues if not empty
-  node* curr = client_queue->head;
-  node* next = NULL;
-  while (curr != NULL) {
-    next = curr->next;
-    free(curr);
-    curr = next;
-  }
-  free(client_queue);
+  // //*** CLEANUP ***//
+  // close(s); //close sockets
+  // close(hb);
 
-  curr = outgoing_queue->head;
-  next = NULL;
-  while (curr != NULL) {
-    next = curr->next;
-    free(curr);
-    curr = next;
-  }
-  free(outgoing_queue);
+  // //clear queues if not empty
+  // node* curr = client_queue->head;
+  // node* next = NULL;
+  // while (curr != NULL) {
+  //   next = curr->next;
+  //   free(curr);
+  //   curr = next;
+  // }
+  // free(client_queue);
+
+  // curr = outgoing_queue->head;
+  // next = NULL;
+  // while (curr != NULL) {
+  //   next = curr->next;
+  //   free(curr);
+  //   curr = next;
+  // }
+  // free(outgoing_queue);
 }
 
 void client_loop(int s, int hb) {
@@ -90,6 +102,8 @@ void client_loop(int s, int hb) {
   thread_params params;
   params.socket = s;
   params.sock_hb = hb;
+
+  sockets = params;
 
   pthread_t listener_thread;
   if (pthread_create(&listener_thread, NULL, client_listen, &params)) {
@@ -127,14 +141,22 @@ void client_loop(int s, int hb) {
     exit(1);
   }
 
+  pthread_t election_thread;
+  if (pthread_create(&election_thread, NULL, elect_leader, &params)){
+    perror("Error making message sender thread");
+    exit(1);
+  }
+
   //loop waiting for trigger, then transform if necessary
   while (!client_trigger);
   if (client_trigger == 2) { //transform
-    //first force kill user_input since it might be stuck on scanf or socket input
+    //kill all thread
+    pthread_cancel(listener_thread);
+    pthread_cancel(printer_thread);
+    pthread_cancel(hb_receiver);
+    pthread_cancel(hb_checker);
     pthread_cancel(input_thread);
-
-    //remove leader
-    remove_leader(this_mach);
+    pthread_cancel(msg_out_thread);
   }
 }
 
@@ -281,11 +303,18 @@ int receive_message(int s, message* m, struct sockaddr_in* source,
 }
 
 void* client_listen(void* input) {
+  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
+
   thread_params* params = (thread_params*)input;
 
   while (!client_trigger) {
     message incoming;
     struct sockaddr_in source;
+
+    while(hold_election)
+    {
+      pthread_mutex_lock(&election_lock);
+    }
 
     //wait for a message + update clients every time if message from leader
     if (receive_message(params->socket, &incoming, &source, this_mach) == FALSE) {
@@ -300,7 +329,13 @@ void* client_listen(void* input) {
 }
 
 void* sortAndPrint() {
+  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
+
   while (!client_trigger) {
+    while(hold_election)
+    {
+      pthread_mutex_lock(&election_lock);
+    }
     //we simply find the next one in the sequence if we can
     //otherwise, we hold
     int i = 0;
@@ -334,6 +369,8 @@ void* sortAndPrint() {
 
 void* recv_clnt_hb(void *param)
 {
+  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
+
   thread_params* params = (thread_params*)param;
   client *this = &this_mach->others[0];
 
@@ -342,6 +379,12 @@ void* recv_clnt_hb(void *param)
   source.sin_family = AF_INET;
 
   while(!client_trigger) {
+
+    while(hold_election)
+    {
+      pthread_mutex_lock(&election_lock);
+    }
+
     if(receive_message(params->sock_hb, &hb, &source, this_mach) == FALSE) {
       error("Error receiving heartbeat message");
     }
@@ -361,14 +404,29 @@ void* recv_clnt_hb(void *param)
 
 void* check_hb(void *param)
 {
+  pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
+
   client *this = &this_mach->others[0];
 
   while(!client_trigger)
   {
+    while(hold_election)
+    {
+      pthread_mutex_lock(&election_lock);
+    }
+
     if(this->send_count - this->recv_count > 3)
     {
-      client_trigger = 2;
-      //TODO hold leader election...
+      /* ************************
+       *  Trigger leader election
+       *  all thread wait for new leader
+       *  
+       * ************************/
+      printf("We found leader is dead...\n");
+
+      hold_election = 1;
+
+      pthread_mutex_unlock(&no_election_lock);
     }
     waitFor(3);
     this->send_count++;
@@ -380,6 +438,12 @@ void* user_input(void *input) {
   pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
 
   while(!client_trigger) {
+
+    while(hold_election)
+    {
+      pthread_mutex_lock(&election_lock);
+    }
+
     char user_in[BUFSIZE]; //get user input (messages)
     if (scanf("%s", user_in) == EOF) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
@@ -414,4 +478,121 @@ void* send_out_input(void* input) {
   }
 
   pthread_exit(0);
+}
+
+void* elect_leader(void* input)
+{
+  thread_params* params = (thread_params*)input;
+  while(!hold_election)
+  {
+    pthread_mutex_lock(&no_election_lock); //no election
+  }
+
+  //remove leader
+  remove_leader(this_mach);
+
+  if(find_next_leader() == this_mach->portno) //claim leader
+  {
+    printf("I am the leader\n");
+    //update group information
+    this_mach->isLeader = TRUE;
+    client_trigger = 2;
+    int i;
+    for(i=0;i<this_mach->chat_size;i++)
+    {
+      if(this_mach->others[i].portno == this_mach->portno)
+      {
+        this_mach->others[i].isLeader = TRUE;
+      }
+    }
+    //broadcast results to all other clients
+    message election_result;
+    election_result.header.about = *this_mach;
+    election_result.header.msg_type = NEWLEADER;
+    
+    struct sockaddr_in dest;
+    dest.sin_family = AF_INET;
+
+    printf("broadcast leader information\n");
+    for(i=0;i<this_mach->chat_size;i++)
+    {
+      if(this_mach->others[i].portno != this_mach->portno)
+      {
+        dest.sin_addr.s_addr = inet_addr(this_mach->others[i].ipaddr);
+        dest.sin_port = htons(this_mach->others[i].portno);
+
+        if (sendto(params->socket, &election_result, sizeof(message), 0, (struct sockaddr *)&dest, 
+            (socklen_t)sizeof(struct sockaddr)) < 0) {
+          perror("Cannot send message to this client");
+          exit(1);
+        }
+      }
+    }
+  }
+  else //TODO - wait for new leader
+  {
+    int found_leader = 0;
+    printf("send election request\n");
+    message election_request;
+    struct sockaddr_in dest;
+    socklen_t dest_len = sizeof(dest);
+    dest.sin_family = AF_INET;
+    //send election request
+    int i;
+    for(i=0;i<this_mach->chat_size;i++)
+    {
+      if(this_mach->others[i].portno > this_mach->portno)
+      {
+        dest.sin_addr.s_addr = inet_addr(this_mach->others[i].ipaddr);
+        dest.sin_port = htons(this_mach->others[i].portno);
+
+        if (sendto(params->socket, &election_request, sizeof(message), 0, (struct sockaddr *)&dest, 
+            (socklen_t)sizeof(struct sockaddr)) < 0) {
+          perror("Cannot send message to this client");
+          exit(1);
+        }
+      }
+    }
+    while(!found_leader)
+    {
+      message reply;
+      if (recvfrom(params->sock_hb, &reply, sizeof(message), 0, 
+          (struct sockaddr*)&dest, &dest_len) < 0)
+      {
+        error("Cannot receive hb");
+      }
+      if(reply.header.msg_type==NEWLEADER)
+      {
+        printf("we found new leader!\n");
+        //update information
+        //release all locks
+      }
+    }
+    //listen for msg from new leader
+    //once it gets info, update all group information
+    //unlock all threads
+    //while(hold_election)
+    //recvfrom();
+    //pthread_mutex_unlock(&election_lock);
+  }
+
+  pthread_exit(0);
+}
+
+/**
+* This function will return the highest port number of client machine
+**/
+int find_next_leader()
+{
+  int next_leader;
+  next_leader = this_mach->others[0].portno;
+  int i;
+  for(i=1;i<this_mach->chat_size;i++)
+  {
+    if(next_leader<this_mach->others[i].portno)
+    {
+      next_leader = this_mach->others[i].portno;
+    }
+  }
+  return next_leader;
 }

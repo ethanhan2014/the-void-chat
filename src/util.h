@@ -93,9 +93,10 @@ typedef struct thread_params {
 } thread_params;
 
 
-// WE NEED THIS VAR REGARDLESS OF IF WE ARE CLIENT OR SEQUENCER //
-machine_info* this_mach;
+// GLOBAL VARIABLES //
 
+machine_info* this_mach; //information about itself
+thread_params sockets;   //store created sockets
 
 // *** FUNCTIONS *** //
 //prints out a formatted list of users and their ip addresses

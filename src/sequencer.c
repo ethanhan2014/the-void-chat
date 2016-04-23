@@ -28,34 +28,44 @@ void sequencer_start() {
   }
   add_client(this_mach, *this_mach); //adding its self to client list
 
+
+  sequencer_loop(s, hb);
+
+/*******************************
+  *
+  * The part below caused potential segmentation fault. 
+  * TODO:: needs a fix here
+  *
+  ********************************/
+  
+  // // ** CLEANUP ** //
+  // close(s);
+  // close(hb);
+
+  // node* curr = sequencer_queue->head;
+  // node* next = NULL;
+  // while (sequencer_queue->length > 0 && curr != NULL) {
+  //   next = curr->next;
+  //   free(curr);
+  //   curr = next;
+  // }
+
+  // free(sequencer_queue);
+}
+
+void sequencer_loop(int s, int hb) {
+  //initialization
   sequencer_queue = (linkedList *) malloc(sizeof(linkedList));
   sequencer_queue->length = 0;
   currentSequenceNum = 0;
 
+  //print out users
   printf("%s started a new chat, listening on %s:%d\n", this_mach->name, 
     this_mach->ipaddr, this_mach->portno);
   printf("Succeded, current users:\n");
   print_users(this_mach);
   printf("Waiting for other users to join...\n");
 
-  sequencer_loop(s, hb);
-  
-  // ** CLEANUP ** //
-  close(s);
-  close(hb);
-
-  node* curr = sequencer_queue->head;
-  node* next = NULL;
-  while (sequencer_queue->length > 0 && curr != NULL) {
-    next = curr->next;
-    free(curr);
-    curr = next;
-  }
-
-  free(sequencer_queue);
-}
-
-void sequencer_loop(int s, int hb) {
   //kick off a thread that is listening in parallel
   thread_params params;
   params.socket = s;
