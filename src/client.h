@@ -13,8 +13,10 @@
 
 linkedList *client_queue;
 int latestSequenceNum;
+int sendSeqNum;
 
 linkedList* outgoing_queue;
+linkedList* temp_queue;
 
 //shared value - many threads react when this changes to TRUE
 //when it becomes 1, all threads end and the process dies

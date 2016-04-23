@@ -12,6 +12,7 @@
 #include "client.h"
 
 void client_start() {
+  sendSeqNum = 0;
   // setup socket for listening
   int s = open_listener_socket(this_mach);
 
@@ -31,6 +32,8 @@ void client_start() {
   client_queue->length = 0;
   outgoing_queue = (linkedList *) malloc(sizeof(linkedList));
   outgoing_queue->length = 0;
+  temp_queue = (linkedList *) malloc(sizeof(linkedList));
+  temp_queue->length = 0;
 
   printf("%s joining a new chat on %s:%d, listening on %s:%d\n", this_mach->name, 
     this_mach->host_ip, this_mach->host_port, this_mach->ipaddr, this_mach->portno);
@@ -303,12 +306,26 @@ void* sortAndPrint() {
     int i = 0;
     for (i = 0; i < client_queue->length; i++) {
       if (getElement(client_queue, i)->v == latestSequenceNum + 1) {
+        node* current = getElement(client_queue, i);
+        int n = 0;
+        for (n = 0; n < temp_queue->length; n++) {
+          //printf("Checking for message in queue\n");
+          //printf("Currently at %s\n", getElement(temp_queue, n)->m.content);
+          //printf("While looking for %s\n", current->m.content);
+          if (strcmp(this_mach->name, getElement(temp_queue, n)->m.header.about.name) == 0 && current->m.senderSeq == getElement(temp_queue, n)->m.senderSeq) {
+            removeElement(temp_queue, n);
+            printf("Found element, removing\n");
+            n = temp_queue->length;
+            break;
+          }
+        }
         print_message(getElement(client_queue, i)->m);
         removeElement(client_queue, i);
         latestSequenceNum++;
 
         i = client_queue->length;
       }
+      //add in another case where we have to check if the message is in the temp_queue
     }
   }
 
@@ -388,7 +405,10 @@ void* user_input(void *input) {
 void* send_out_input(void* input) {
   while (!client_trigger) {
     if (outgoing_queue->length > 0) {
+      outgoing_queue->head->m.senderSeq = sendSeqNum;
+      sendSeqNum++;
       msg_request(this_mach, outgoing_queue->head->m);
+      addElement(temp_queue, 0, "NO", outgoing_queue->head->m);
       removeElement(outgoing_queue, 0);
     }
   }

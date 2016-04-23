@@ -150,6 +150,7 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     text_msg.header.msg_type = MSG_REQ;
     text_msg.header.status = TRUE;
     text_msg.header.about = *this_mach;
+    text_msg.senderSeq = m.senderSeq;
     text_msg.header.seq_num = currentSequenceNum;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
 
