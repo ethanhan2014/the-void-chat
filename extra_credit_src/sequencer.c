@@ -277,7 +277,7 @@ void traffic_control(message m) {
   }
 
   //only track up to 10 time diffs at once
-  if (this.msg_times->length >= 10) {
+  if (this.msg_times->length >= NUM_TIMES_TRACKED) {
     removeElement(this.msg_times, 0);
   }
   addElement(this.msg_times, ((int)time(0) - 

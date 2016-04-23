@@ -150,7 +150,8 @@ void client_loop(int s, int hb) {
   //loop waiting for trigger, then transform if necessary
   while (!client_trigger);
   if (client_trigger == 2) { //transform
-    //kill all thread
+    //must all thread to transform
+    //transform happens after loop exit and we return to dchat
     pthread_cancel(listener_thread);
     pthread_cancel(printer_thread);
     pthread_cancel(hb_receiver);
@@ -336,22 +337,25 @@ void* sortAndPrint() {
     {
       pthread_mutex_lock(&election_lock);
     }
-    //we simply find the next one in the sequence if we can
-    //otherwise, we hold
+    //find the next one in the sequence if we can
     int i = 0;
     for (i = 0; i < client_queue->length; i++) {
-      if (getElement(client_queue, i)->v == latestSequenceNum + 1) {
-        node* current = getElement(client_queue, i);
+      node* current = getElement(client_queue, i);
+      if (current->v == latestSequenceNum + 1) {
         int n = 0;
         for (n = 0; n < temp_queue->length; n++) {
+          node* outgoing_msg = getElement(temp_queue, n);
           //printf("Checking for message in queue\n");
           //printf("Currently at %s\n", getElement(temp_queue, n)->m.content);
           //printf("While looking for %s\n", current->m.content);
-          if (strcmp(this_mach->name, getElement(temp_queue, n)->m.header.about.name) == 0 && current->m.senderSeq == getElement(temp_queue, n)->m.senderSeq) {
+          if (strcmp(this_mach->name, outgoing_msg->m.header.about.name) == 0 
+              && strcmp(this_mach->ipaddr, outgoing_msg->m.header.about.ipaddr) == 0 
+              && this_mach->portno == outgoing_msg->m.header.about.portno 
+              && this_mach->isLeader == outgoing_msg->m.header.about.isLeader
+              && current->m.header.sender_seq == outgoing_msg->m.header.sender_seq) {
             removeElement(temp_queue, n);
             printf("Found element, removing\n");
             n = temp_queue->length;
-            break;
           }
         }
         print_message(getElement(client_queue, i)->m);
@@ -360,7 +364,6 @@ void* sortAndPrint() {
 
         i = client_queue->length;
       }
-      //add in another case where we have to check if the message is in the temp_queue
     }
   }
 
@@ -469,10 +472,12 @@ void* user_input(void *input) {
 void* send_out_input(void* input) {
   while (!client_trigger) {
     if (outgoing_queue->length > 0) {
-      outgoing_queue->head->m.senderSeq = sendSeqNum;
+      node* this = outgoing_queue->head;
+      this->m.header.sender_seq = sendSeqNum;
       sendSeqNum++;
-      msg_request(this_mach, outgoing_queue->head->m);
-      addElement(temp_queue, 0, "NO", outgoing_queue->head->m);
+
+      msg_request(this_mach, this->m);
+      addElement(temp_queue, 0, "NO", this->m);
       removeElement(outgoing_queue, 0);
     }
   }

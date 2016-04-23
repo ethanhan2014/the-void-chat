@@ -20,12 +20,6 @@
 #define NEWLEADER 9
 #define NEW_USER 10
 #define LEAVE 11
-#define CTRL_SLOW 12
-#define CTRL_STOP 13
-
-//traffic control
-#define NUM_TIMES_TRACKED 10
-#define CTRL_THRESH 1.5
 
 
 // *** STRUCT FORMATS *** //
@@ -35,15 +29,11 @@ typedef struct linkedList linkedList;
 typedef struct client {
   char name[BUFSIZE];
   char ipaddr[BUFSIZE];
-  int portno;\
+  int portno;
   int isLeader;
 
   int recv_count; //used for heartbeat count
   int send_count; //used for heartbeat count
-
-  linkedList* msg_times; //diff between last 10 incoming messages for this client
-  int* last_time; //time of most recent incoming message
-  float* slow_factor;
 } client;
 
 //actual payload data
@@ -66,10 +56,10 @@ typedef struct msg_header {
   int msg_type;           // response or chat message or leader election request
   int status;             //indicate whether it's ready to be delivered
   machine_info about;     // information about sender machine
+  int sender_seq;         // number assigned by original sender to ensure delivery
 } msg_header;
 
 typedef struct messages {
-  int senderSeq;
   msg_header header;      //header information contains information about individual machine
   char content[BUFSIZE];  // contains the chatting information 
 } message;

@@ -58,7 +58,7 @@ int main(int argc, char const *argv[]) {
 
     this_mach->isLeader = TRUE;
     strcpy(this_mach->host_ip,this_mach->ipaddr);
-    this_mach->portno = this_mach->portno;
+    this_mach->host_port = this_mach->portno;
     client_trigger = 0; //reset so sequencer loop can run
     sequencer_loop(sockets.socket, sockets.sock_hb);
   }
