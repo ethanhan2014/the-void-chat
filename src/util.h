@@ -46,7 +46,6 @@ typedef struct machine_info {
   int chat_size;          // number of other chatters
   char host_ip[BUFSIZE];  // current leader's ip
   int host_port;// current leader's port
-  int current_sequence_num;
 } machine_info;
 
 

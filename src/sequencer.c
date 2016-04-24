@@ -28,7 +28,8 @@ void sequencer_start() {
   }
   add_client(this_mach, *this_mach); //adding its self to client list
 
-
+  currentSequenceNum = 0;
+  
   sequencer_loop(s, hb);
 
 /*******************************
@@ -57,7 +58,6 @@ void sequencer_loop(int s, int hb) {
   //initialization
   sequencer_queue = (linkedList *) malloc(sizeof(linkedList));
   sequencer_queue->length = 0;
-  currentSequenceNum = 0;
 
   //print out users
   printf("%s started a new chat, listening on %s:%d\n", this_mach->name, 
@@ -140,7 +140,7 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     response.header.timestamp = (int)time(0);
     response.header.msg_type = JOIN_RES;
     response.header.status = TRUE;
-    this_mach->current_sequence_num = currentSequenceNum;
+    response.header.seq_num = currentSequenceNum;
     response.header.about = *this_mach;
     respond_to(s, &response, source);
   } else if (m.header.msg_type == MSG_REQ) {

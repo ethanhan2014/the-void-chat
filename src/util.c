@@ -59,7 +59,6 @@ void set_machine_info(char const *name) {
   strcpy(this_mach->name, name);
   this_mach->isLeader = FALSE; //(for now)
   this_mach->chat_size = 0;
-  this_mach->current_sequence_num = 0; //(for now)
 }
 
 int open_listener_socket(machine_info* mach) {

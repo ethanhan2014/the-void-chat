@@ -10,6 +10,7 @@
 
 #include "util.h"
 #include "client.h"
+#include "sequencer.h"
 
 void client_start() {
   sendSeqNum = 0;
@@ -51,7 +52,7 @@ void client_start() {
 
     host_attempt = join_request(this_mach);
   }
-  latestSequenceNum = host_attempt.header.about.current_sequence_num - 1;
+  latestSequenceNum = host_attempt.header.seq_num - 1;
   update_clients(this_mach, host_attempt.header.about);
 
   printf("Succeeded, current users:\n");
@@ -360,35 +361,40 @@ void* sortAndPrint() {
     {
       pthread_mutex_lock(&election_lock);
     }
-    //find the next one in the sequence if we can
+
+    //incr by 1 each iter then check to resend if necessary (v > 1000)
+    int n = 0;
+    for (n = 0; n < temp_queue->length; n++) {
+      node* curr = getElement(temp_queue, n);
+      curr->v++;
+
+      if (curr->v > 2000) {
+        addElement(outgoing_queue, 0, "NO", curr->m);
+        removeElement(temp_queue, n);
+      }
+    }
+
+    //now find the next one we want to print
     int i = 0;
     for (i = 0; i < client_queue->length; i++) {
       node* current = getElement(client_queue, i);
-      if (current->v == latestSequenceNum + 1) {
-        int n = 0;
-        for (n = 0; n < temp_queue->length; n++) {
-          getElement(temp_queue, n)->v++;
-        }
+      if (current->v == latestSequenceNum + 1) { //got it!
+        //now check to remove it from your sent queue
         for (n = 0; n < temp_queue->length; n++) {
           node* outgoing_msg = getElement(temp_queue, n);
-          //printf("Checking for message in queue\n");
-          //printf("Currently at %s\n", getElement(temp_queue, n)->m.content);
-          //printf("While looking for %s\n", current->m.content);
           if (strcmp(this_mach->name, outgoing_msg->m.header.about.name) == 0 
               && strcmp(this_mach->ipaddr, outgoing_msg->m.header.about.ipaddr) == 0 
               && this_mach->portno == outgoing_msg->m.header.about.portno 
               && this_mach->isLeader == outgoing_msg->m.header.about.isLeader
               && current->m.header.sender_seq == outgoing_msg->m.header.sender_seq) {
+            //we sent this one, and we will print it! remove from our sent queue
             removeElement(temp_queue, n);
             printf("Found element, removing\n");
             n = temp_queue->length;
           }
-          else if (getElement(temp_queue, n)->v > 1000) {
-            addElement(outgoing_queue, 0, "NO", getElement(temp_queue, n)->m);
-            removeElement(temp_queue, n);
-            n = temp_queue->length;
-          }
         }
+
+        //print it regardless of it we sent it
         print_message(getElement(client_queue, i)->m);
         removeElement(client_queue, i);
         latestSequenceNum++;
@@ -550,6 +556,8 @@ void* elect_leader(void* input)
       message election_result;
       election_result.header.about = *this_mach;
       election_result.header.msg_type = NEWLEADER;
+      election_result.header.seq_num = latestSequenceNum;
+      currentSequenceNum = latestSequenceNum+1; //update seq var since we will become seq
       
       struct sockaddr_in dest;
       dest.sin_family = AF_INET;
@@ -616,6 +624,8 @@ void* elect_leader(void* input)
           update_clients(this_mach,reply.header.about);
           strcpy(this_mach->host_ip, reply.header.about.ipaddr);
           this_mach->host_port = reply.header.about.portno;
+          latestSequenceNum = reply.header.seq_num;
+
           //release all locks
           hold_election = 0;
 
