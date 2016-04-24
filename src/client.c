@@ -383,8 +383,8 @@ void* sortAndPrint() {
             printf("Found element, removing\n");
             n = temp_queue->length;
           }
-          else if (getElement(temp_queue, n) > 1000) {
-            addElement(outgoing_queue, 0, "NO", getElement(temp_queue, n)->m));
+          else if (getElement(temp_queue, n)->v > 1000) {
+            addElement(outgoing_queue, 0, "NO", getElement(temp_queue, n)->m);
             removeElement(temp_queue, n);
             n = temp_queue->length;
           }
