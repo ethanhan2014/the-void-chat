@@ -10,18 +10,26 @@
 #define TRUE 1
 #define FALSE 0
 
-//message types
+//** MESSAGE TYPES ** //
+//a message request
 #define MSG_REQ 3
+//response to message request
 #define MSG_RES 4
+//join chat request sent by new client
 #define JOIN_REQ 5
+//join chat response sent to client by leader once it receives request
 #define JOIN_RES 6
+//instruction to client to start election process of new leader
 #define ELECTION_REQ 7
+//general ACK message used in many places to confirm receipt
 #define ACK 8
+//message used to indicate that there is a new leader and it is the machine that
+//send this message
 #define NEWLEADER 9
+//message to indicate that a new user has been approved by leader and is in chat
 #define NEW_USER 10
+//message to indicate that a user has left according to leader
 #define LEAVE 11
-#define CTRL_SLOW 12
-#define CTRL_STOP 13
 
 //traffic control
 #define NUM_TIMES_TRACKED 10

@@ -67,35 +67,39 @@ void client_start() {
   client_loop(s, hb);
 
 
-  /*******************************
-  *
-  * The part below caused potential segmentation fault. 
-  * TODO:: needs a fix here
-  *
-  ********************************/
+  //*** CLEANUP ***//
+  if (client_trigger != 2) {
+    close(s); //close sockets since we are dead now (not transforming)
+    close(hb);
+  }
 
-  // //*** CLEANUP ***//
-  // close(s); //close sockets
-  // close(hb);
+  //clear queues if not empty
+  /*node* curr = client_queue->head;
+  node* next = NULL;
+  while (curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(client_queue);
 
-  // //clear queues if not empty
-  // node* curr = client_queue->head;
-  // node* next = NULL;
-  // while (curr != NULL) {
-  //   next = curr->next;
-  //   free(curr);
-  //   curr = next;
-  // }
-  // free(client_queue);
+  curr = outgoing_queue->head;
+  next = NULL;
+  while (curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(outgoing_queue);
 
-  // curr = outgoing_queue->head;
-  // next = NULL;
-  // while (curr != NULL) {
-  //   next = curr->next;
-  //   free(curr);
-  //   curr = next;
-  // }
-  // free(outgoing_queue);
+  curr = temp_queue->head;
+  next = NULL;
+  while (curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(temp_queue);*/
 }
 
 void client_loop(int s, int hb) {

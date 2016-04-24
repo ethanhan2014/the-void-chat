@@ -29,29 +29,21 @@ void sequencer_start() {
   add_client(this_mach, *this_mach); //adding its self to client list
 
   currentSequenceNum = 0;
-  
+
   sequencer_loop(s, hb);
 
-/*******************************
-  *
-  * The part below caused potential segmentation fault. 
-  * TODO:: needs a fix here
-  *
-  ********************************/
-  
-  // // ** CLEANUP ** //
-  // close(s);
-  // close(hb);
+  // ** CLEANUP ** //
+  close(s);
+  close(hb);
 
-  // node* curr = sequencer_queue->head;
-  // node* next = NULL;
-  // while (sequencer_queue->length > 0 && curr != NULL) {
-  //   next = curr->next;
-  //   free(curr);
-  //   curr = next;
-  // }
-
-  // free(sequencer_queue);
+  /*node* curr = sequencer_queue->head;
+  node* next = NULL;
+  while (sequencer_queue->length > 0 && curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(sequencer_queue);*/
 }
 
 void sequencer_loop(int s, int hb) {
@@ -306,7 +298,7 @@ void* send_hb(void *param)
           leave_notice.header.status = TRUE;
           leave_notice.header.about = *this_mach;
           leave_notice.header.seq_num = currentSequenceNum;
-          sprintf(leave_notice.content, "NOTICE %s left the chat or crashed",
+          sprintf(leave_notice.content, "NOTICE %s left the chat or crashed\n",
             this->name);
           addElement(sequencer_queue, currentSequenceNum, "NO", leave_notice);
           currentSequenceNum++;
