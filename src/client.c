@@ -362,23 +362,17 @@ void* sortAndPrint() {
       pthread_mutex_lock(&election_lock);
     }
 
-    //incr by 1 each iter then check to resend if necessary (v > 1000)
-    int n = 0;
-    for (n = 0; n < temp_queue->length; n++) {
-      node* curr = getElement(temp_queue, n);
-      curr->v++;
-
-      if (curr->v > 2000) {
-        addElement(outgoing_queue, 0, "NO", curr->m);
-        removeElement(temp_queue, n);
-      }
-    }
-
     //now find the next one we want to print
     int i = 0;
     for (i = 0; i < client_queue->length; i++) {
       node* current = getElement(client_queue, i);
-      if (current->v == latestSequenceNum + 1) { //got it!
+      if (current->v == latestSequenceNum + 1) { //got it
+        //incr by 1 each iter then check to resend if necessary later (v > 1000)
+        int n = 0;
+        for (n = 0; n < temp_queue->length; n++) {
+          getElement(temp_queue, n)->v++;
+        }
+
         //now check to remove it from your sent queue
         for (n = 0; n < temp_queue->length; n++) {
           node* outgoing_msg = getElement(temp_queue, n);
@@ -392,9 +386,14 @@ void* sortAndPrint() {
             printf("Found element, removing\n");
             n = temp_queue->length;
           }
+          else if (getElement(temp_queue, n)->v > 1000) {
+            addElement(outgoing_queue, 0, "NO", getElement(temp_queue, n)->m);
+            removeElement(temp_queue, n);
+            n = temp_queue->length;
+          }
         }
 
-        //print it regardless of it we sent it
+        //print it regardless of it we sent it initially
         print_message(getElement(client_queue, i)->m);
         removeElement(client_queue, i);
         latestSequenceNum++;
