@@ -290,11 +290,9 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
     } else if (m.header.msg_type == LEAVE) {
       remove_client_mach(this_mach, m.header.about);
     } else if (m.header.msg_type == ELECTION_REQ) {
-      printf("We found leader is dead...\n");
       hold_election = 1;
       pthread_mutex_unlock(&no_election_lock);
     } else if (m.header.msg_type == NEWLEADER) {
-      printf("Leader change!!!!\n");
       //hold on all threads
       remove_leader(this_mach);
       update_clients(this_mach,m.header.about);
@@ -455,8 +453,6 @@ void* check_hb(void *param)
     if(this->send_count - this->recv_count > 3)
     {
       //trigger election
-      printf("We found leader is dead...\n");
-
       hold_election = 1;
       pthread_mutex_unlock(&no_election_lock);
     }
@@ -529,7 +525,6 @@ void* elect_leader(void* input)
 
     if(find_next_leader() == this_mach->portno) //claim leader
     {
-      printf("I am the leader\n");
       //update group information
       this_mach->isLeader = TRUE;
       strcpy(this_mach->host_ip,this_mach->ipaddr);
@@ -554,7 +549,6 @@ void* elect_leader(void* input)
       struct sockaddr_in dest;
       dest.sin_family = AF_INET;
 
-      printf("broadcast leader information\n");
       for(i=0;i<this_mach->chat_size;i++)
       {
         if(this_mach->others[i].portno != this_mach->portno)
@@ -573,7 +567,6 @@ void* elect_leader(void* input)
     else
     {
       int found_leader = 0;
-      printf("send election request\n");
 
       message election_request;
       election_request.header.msg_type = ELECTION_REQ;
@@ -610,7 +603,6 @@ void* elect_leader(void* input)
         }
         if(reply.header.msg_type == NEWLEADER)
         {
-          printf("we found new leader!\n");
           found_leader = 1;
           //update information
           update_clients(this_mach,reply.header.about);
