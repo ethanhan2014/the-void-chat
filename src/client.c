@@ -376,25 +376,24 @@ void* sortAndPrint() {
         //now check to remove it from your sent queue
         for (n = 0; n < temp_queue->length; n++) {
           node* outgoing_msg = getElement(temp_queue, n);
-          if (strcmp(this_mach->name, outgoing_msg->m.header.about.name) == 0 
-              && strcmp(this_mach->ipaddr, outgoing_msg->m.header.about.ipaddr) == 0 
-              && this_mach->portno == outgoing_msg->m.header.about.portno 
-              && this_mach->isLeader == outgoing_msg->m.header.about.isLeader
+          if (strcmp(this_mach->name, current->m.header.about.name) == 0 
+              && strcmp(this_mach->ipaddr, current->m.header.about.ipaddr) == 0 
+              && this_mach->portno == current->m.header.about.portno 
+              && this_mach->isLeader == current->m.header.about.isLeader
               && current->m.header.sender_seq == outgoing_msg->m.header.sender_seq) {
             //we sent this one, and we will print it! remove from our sent queue
             removeElement(temp_queue, n);
-            printf("Found element, removing\n");
             n = temp_queue->length;
           }
-          else if (getElement(temp_queue, n)->v > 1000) {
-            addElement(outgoing_queue, 0, "NO", getElement(temp_queue, n)->m);
+          else if (outgoing_msg->v > 1000) {
+            addElement(outgoing_queue, 0, "NO", outgoing_msg->m);
             removeElement(temp_queue, n);
             n = temp_queue->length;
           }
         }
 
         //print it regardless of it we sent it initially
-        print_message(getElement(client_queue, i)->m);
+        print_message(current->m);
         removeElement(client_queue, i);
         latestSequenceNum++;
 
@@ -512,8 +511,8 @@ void* send_out_input(void* input) {
       this->m.header.sender_seq = sendSeqNum;
       sendSeqNum++;
 
-      msg_request(this_mach, this->m);
       addElement(temp_queue, 0, "NO", this->m);
+      msg_request(this_mach, this->m);
       removeElement(outgoing_queue, 0);
     }
   }
