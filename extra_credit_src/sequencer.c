@@ -30,6 +30,8 @@ void sequencer_start() {
 
   sequencer_queue = (linkedList *) malloc(sizeof(linkedList));
   sequencer_queue->length = 0;
+  important_queue = (linkedList *) malloc(sizeof(linkedList));
+  important_queue->length = 0;
   currentSequenceNum = 0;
 
   printf("%s started a new chat, listening on %s:%d\n", this_mach->name, 
@@ -145,7 +147,7 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     }
 
     add_client(this_mach, m.header.about); //update clientlist
-    addElement(sequencer_queue, currentSequenceNum, "NO", join_msg); //update msgs
+    addElement(important_queue, currentSequenceNum, "NO", join_msg); //update msgs
     currentSequenceNum++;
 
     //respond to original client
@@ -382,6 +384,10 @@ void* sequencer_listen(void* input) {
 
 void* sequencer_send_queue(void* input) {
   while (1) {
+    if (important_queue->length > 0) {
+      broadcast_message(important_queue->head->m);
+      removeElement(important_queue, 0);
+    }
     if (sequencer_queue->length > 0) {
       broadcast_message(sequencer_queue->head->m);
       removeElement(sequencer_queue, 0);
@@ -436,7 +442,7 @@ void* send_hb(void *param)
           for (n = 0; n < BUFSIZE; n++) {
             leave_notice.content[n] += 7;
           }
-          addElement(sequencer_queue, currentSequenceNum, "NO", leave_notice);
+          addElement(important_queue, currentSequenceNum, "NO", leave_notice);
           currentSequenceNum++;
 
           //then remove the member

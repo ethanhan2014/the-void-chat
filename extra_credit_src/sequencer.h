@@ -4,6 +4,7 @@
 
 
 linkedList *sequencer_queue;
+linkedList *important_queue;
 int currentSequenceNum;
 
 void sequencer_start();
