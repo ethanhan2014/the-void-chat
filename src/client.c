@@ -367,6 +367,9 @@ void* sortAndPrint() {
       if (current->v == latestSequenceNum + 1) {
         int n = 0;
         for (n = 0; n < temp_queue->length; n++) {
+          getElement(temp_queue, n)->v++;
+        }
+        for (n = 0; n < temp_queue->length; n++) {
           node* outgoing_msg = getElement(temp_queue, n);
           //printf("Checking for message in queue\n");
           //printf("Currently at %s\n", getElement(temp_queue, n)->m.content);
@@ -378,6 +381,11 @@ void* sortAndPrint() {
               && current->m.header.sender_seq == outgoing_msg->m.header.sender_seq) {
             removeElement(temp_queue, n);
             printf("Found element, removing\n");
+            n = temp_queue->length;
+          }
+          else if (getElement(temp_queue, n) > 1000) {
+            addElement(outgoing_queue, 0, "NO", getElement(temp_queue, n)->m));
+            removeElement(temp_queue, n);
             n = temp_queue->length;
           }
         }
