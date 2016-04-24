@@ -139,6 +139,10 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     join_msg.header.seq_num = currentSequenceNum;
     sprintf(join_msg.content, "NOTICE %s joined on %s:%d", 
       m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
+    int n = 0;
+    for (n = 0; n < BUFSIZE; n++) {
+      join_msg.content[n] += 7;
+    }
 
     add_client(this_mach, m.header.about); //update clientlist
     addElement(sequencer_queue, currentSequenceNum, "NO", join_msg); //update msgs
@@ -428,6 +432,10 @@ void* send_hb(void *param)
           leave_notice.header.seq_num = currentSequenceNum;
           sprintf(leave_notice.content, "NOTICE %s left the chat or crashed",
             this->name);
+          int n = 0;
+          for (n = 0; n < BUFSIZE; n++) {
+            leave_notice.content[n] += 7;
+          }
           addElement(sequencer_queue, currentSequenceNum, "NO", leave_notice);
           currentSequenceNum++;
 
