@@ -296,7 +296,6 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
     } else if (m.header.msg_type == NEWLEADER) {
       printf("Leader change!!!!\n");
       //hold on all threads
-      hold_election = 1;
       remove_leader(this_mach);
       update_clients(this_mach,m.header.about);
       strcpy(this_mach->host_ip, m.header.about.ipaddr);
@@ -335,7 +334,7 @@ void* client_listen(void* input) {
   while (!client_trigger) {
     message incoming;
     struct sockaddr_in source;
-
+    
     while(hold_election)
     {
       pthread_mutex_lock(&election_lock);
@@ -455,15 +454,10 @@ void* check_hb(void *param)
 
     if(this->send_count - this->recv_count > 3)
     {
-      /* ************************
-       *  Trigger leader election
-       *  all thread wait for new leader
-       *  
-       * ************************/
+      //trigger election
       printf("We found leader is dead...\n");
 
       hold_election = 1;
-
       pthread_mutex_unlock(&no_election_lock);
     }
     waitFor(3);
@@ -612,7 +606,7 @@ void* elect_leader(void* input)
         if (recvfrom(params->socket, &reply, sizeof(message), 0, 
             (struct sockaddr*)&dest, &dest_len) < 0)
         {
-          error("Cannot receive hb");
+          error("Cannot receive msg");
         }
         if(reply.header.msg_type == NEWLEADER)
         {
