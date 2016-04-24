@@ -90,8 +90,9 @@ void sequencer_loop(int s, int hb) {
   //loop waiting for user input
   int done = FALSE;
   while (!done) {
-    char input[BUFSIZE]; //get user input (messages)
-    if (fgets(input, BUFSIZE, stdin) == NULL) {
+    char* input = (char*)malloc(BUFSIZE * sizeof(char)); //get user input (messages)
+    size_t size = (size_t)BUFSIZE;
+    if (getline(&input, &size, stdin) == -1) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
     } else {
@@ -108,6 +109,8 @@ void sequencer_loop(int s, int hb) {
       addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
       currentSequenceNum++;
     }
+
+    free(input);
   }
 }
 

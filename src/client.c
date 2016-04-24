@@ -476,8 +476,9 @@ void* user_input(void *input) {
       pthread_mutex_lock(&election_lock);
     }
 
-    char user_in[BUFSIZE]; //get user input (messages)
-    if (fgets(user_in, BUFSIZE, stdin) == NULL) {
+    char* user_in = (char*)malloc(BUFSIZE * sizeof(char)); //get user input (messages)
+    size_t size = (size_t)BUFSIZE;
+    if (getline(&user_in, &size, stdin) == -1) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       client_trigger = 1;
     } else {
@@ -493,6 +494,8 @@ void* user_input(void *input) {
 
       addElement(outgoing_queue, 0, "NO", text_msg);
     }
+
+    free(user_in);
   }
 
   pthread_exit(0);
