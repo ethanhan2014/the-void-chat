@@ -288,6 +288,29 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       add_client(this_mach, m.header.about);
     } else if (m.header.msg_type == LEAVE) {
       remove_client_mach(this_mach, m.header.about);
+    } else if (m.header.msg_type == ELECTION_REQ) {
+      printf("We found leader is dead...\n");
+      hold_election = 1;
+      pthread_mutex_unlock(&no_election_lock);
+    } else if (m.header.msg_type == NEWLEADER) {
+      printf("Leader change!!!!\n");
+      //hold on all threads
+      hold_election = 1;
+      remove_leader(this_mach);
+      update_clients(this_mach,m.header.about);
+      strcpy(this_mach->host_ip, m.header.about.ipaddr);
+      this_mach->host_port = m.header.about.portno;
+      //continue all threads
+      hold_election = 0;
+
+      pthread_mutex_unlock(&election_lock);
+      pthread_mutex_unlock(&election_lock);
+      pthread_mutex_unlock(&election_lock);
+      pthread_mutex_unlock(&election_lock);
+      pthread_mutex_unlock(&election_lock);
+      pthread_mutex_unlock(&election_lock);
+
+      print_users(this_mach);
     }
   }
 }
@@ -488,99 +511,118 @@ void* send_out_input(void* input) {
 void* elect_leader(void* input)
 {
   thread_params* params = (thread_params*)input;
-  while(!hold_election)
-  {
-    pthread_mutex_lock(&no_election_lock); //no election
-  }
 
-  //remove leader
-  remove_leader(this_mach);
-
-  if(find_next_leader() == this_mach->portno) //claim leader
-  {
-    printf("I am the leader\n");
-    //update group information
-    this_mach->isLeader = TRUE;
-    client_trigger = 2;
-    int i;
-    for(i=0;i<this_mach->chat_size;i++)
+  while (!client_trigger) {
+    while(!hold_election)
     {
-      if(this_mach->others[i].portno == this_mach->portno)
+      pthread_mutex_lock(&no_election_lock); //no election
+    }
+
+    //remove leader
+    remove_leader(this_mach);
+
+    if(find_next_leader() == this_mach->portno) //claim leader
+    {
+      printf("I am the leader\n");
+      //update group information
+      this_mach->isLeader = TRUE;
+      strcpy(this_mach->host_ip,this_mach->ipaddr);
+      this_mach->host_port = this_mach->portno;
+      client_trigger = 2;
+      int i;
+      for(i=0;i<this_mach->chat_size;i++)
       {
-        this_mach->others[i].isLeader = TRUE;
+        if(this_mach->others[i].portno == this_mach->portno)
+        {
+          this_mach->others[i].isLeader = TRUE;
+        }
+      }
+
+      //broadcast results to all other clients
+      message election_result;
+      election_result.header.about = *this_mach;
+      election_result.header.msg_type = NEWLEADER;
+      
+      struct sockaddr_in dest;
+      dest.sin_family = AF_INET;
+
+      printf("broadcast leader information\n");
+      for(i=0;i<this_mach->chat_size;i++)
+      {
+        if(this_mach->others[i].portno != this_mach->portno)
+        {
+          dest.sin_addr.s_addr = inet_addr(this_mach->others[i].ipaddr);
+          dest.sin_port = htons(this_mach->others[i].portno);
+
+          if (sendto(params->socket, &election_result, sizeof(message), 0, (struct sockaddr *)&dest, 
+              (socklen_t)sizeof(struct sockaddr)) < 0) {
+            perror("Cannot send message to this client");
+            exit(1);
+          }
+        }
       }
     }
-    //broadcast results to all other clients
-    message election_result;
-    election_result.header.about = *this_mach;
-    election_result.header.msg_type = NEWLEADER;
-    
-    struct sockaddr_in dest;
-    dest.sin_family = AF_INET;
-
-    printf("broadcast leader information\n");
-    for(i=0;i<this_mach->chat_size;i++)
+    else
     {
-      if(this_mach->others[i].portno != this_mach->portno)
-      {
-        dest.sin_addr.s_addr = inet_addr(this_mach->others[i].ipaddr);
-        dest.sin_port = htons(this_mach->others[i].portno);
+      int found_leader = 0;
+      printf("send election request\n");
 
-        if (sendto(params->socket, &election_result, sizeof(message), 0, (struct sockaddr *)&dest, 
-            (socklen_t)sizeof(struct sockaddr)) < 0) {
-          perror("Cannot send message to this client");
-          exit(1);
+      message election_request;
+      election_request.header.msg_type = ELECTION_REQ;
+      election_request.header.about = *this_mach;
+
+      struct sockaddr_in dest;
+      socklen_t dest_len = sizeof(dest);
+      dest.sin_family = AF_INET;
+
+      //send election request to members with higher port number
+      int i;
+      for(i=0;i<this_mach->chat_size;i++)
+      {
+        if(this_mach->others[i].portno > this_mach->portno)
+        {
+          dest.sin_addr.s_addr = inet_addr(this_mach->others[i].ipaddr);
+          dest.sin_port = htons(this_mach->others[i].portno);
+
+          if (sendto(params->socket, &election_request, sizeof(message), 0, (struct sockaddr *)&dest, 
+              (socklen_t)sizeof(struct sockaddr)) < 0) {
+            perror("Cannot send message to this client");
+            exit(1);
+          }
+        }
+      }
+      //listen for new leader information
+      while(!found_leader)
+      {
+        message reply;
+        if (recvfrom(params->socket, &reply, sizeof(message), 0, 
+            (struct sockaddr*)&dest, &dest_len) < 0)
+        {
+          error("Cannot receive hb");
+        }
+        if(reply.header.msg_type == NEWLEADER)
+        {
+          printf("we found new leader!\n");
+          found_leader = 1;
+          //update information
+          update_clients(this_mach,reply.header.about);
+          strcpy(this_mach->host_ip, reply.header.about.ipaddr);
+          this_mach->host_port = reply.header.about.portno;
+          //release all locks
+          hold_election = 0;
+
+          pthread_mutex_unlock(&election_lock);
+          pthread_mutex_unlock(&election_lock);
+          pthread_mutex_unlock(&election_lock);
+          pthread_mutex_unlock(&election_lock);
+          pthread_mutex_unlock(&election_lock);
+          pthread_mutex_unlock(&election_lock);
+
+          print_users(this_mach);
         }
       }
     }
   }
-  else //TODO - wait for new leader
-  {
-    int found_leader = 0;
-    printf("send election request\n");
-    message election_request;
-    struct sockaddr_in dest;
-    socklen_t dest_len = sizeof(dest);
-    dest.sin_family = AF_INET;
-    //send election request
-    int i;
-    for(i=0;i<this_mach->chat_size;i++)
-    {
-      if(this_mach->others[i].portno > this_mach->portno)
-      {
-        dest.sin_addr.s_addr = inet_addr(this_mach->others[i].ipaddr);
-        dest.sin_port = htons(this_mach->others[i].portno);
-
-        if (sendto(params->socket, &election_request, sizeof(message), 0, (struct sockaddr *)&dest, 
-            (socklen_t)sizeof(struct sockaddr)) < 0) {
-          perror("Cannot send message to this client");
-          exit(1);
-        }
-      }
-    }
-    while(!found_leader)
-    {
-      message reply;
-      if (recvfrom(params->sock_hb, &reply, sizeof(message), 0, 
-          (struct sockaddr*)&dest, &dest_len) < 0)
-      {
-        error("Cannot receive hb");
-      }
-      if(reply.header.msg_type==NEWLEADER)
-      {
-        printf("we found new leader!\n");
-        //update information
-        //release all locks
-      }
-    }
-    //listen for msg from new leader
-    //once it gets info, update all group information
-    //unlock all threads
-    //while(hold_election)
-    //recvfrom();
-    //pthread_mutex_unlock(&election_lock);
-  }
-
   pthread_exit(0);
 }
 
