@@ -149,6 +149,7 @@ This part handles sending and receiving of all chat messages. When a user types 
 #### Protocol Implementation Details
 
 ##### Program startup, group starting/joining/leaving, message broadcasting/receiving, parsing (conoryan)
+
 * The program startup and setup takes form in dchat.c. Here the program either becomes a client or sequencer initially, and then once the program leaves whichever of these initially occured, the program can reenter as a sequencer in the right conditions (following an election that a client won). Otherwise, this just jumps into the sequencer or client file.
 
 * Clients join by pinging whatever IP:PORT the user gave initially and getting a response. When this fails there is clearly no chat active so the program terminates, otherwise if the response is from a non-leader, the message response contains the IP:PORT of the actual leader on that chat. So, the client parses that information (or just proceeds if it found the leader the first time) and tries to connect to the leader. Once the leader responds that the join was successful, the program just enters its main loop, waiting for user input and outside messages.
@@ -158,6 +159,12 @@ This part handles sending and receiving of all chat messages. When a user types 
 * Sequencers broadcast messages by just continuously emptying its message queue from the head, and sending to its list of clients. Its message queue gets populated by an identical listener thread.
 
 ##### Fully ordered multicast protocol with a central sequencer (malhk)
+
+* The fully ordered multicast protocol works as follows. All messages arriving at the sequencer are assigned a sequeunce number as they arrive. The sequence number is assigned to each message based on the order it arrived in. It is incremented each time a message arrives.
+
+* A separate thread is responsible for broadcasting these messages to the clients. The broadcast is also done in the order of arrival.
+
+* Finally, all clients maintain state about what the current sequence number is. As messages arrive, clients look for the message in the arrived messages queue with the correct sequence number and print it. If the message does not exist, then the client waits for the message to arrive.
 
 ##### Failure Detection and Leader election (hanziyi)
 
