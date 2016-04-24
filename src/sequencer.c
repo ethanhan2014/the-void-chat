@@ -99,7 +99,7 @@ void sequencer_loop(int s, int hb) {
   int done = FALSE;
   while (!done) {
     char input[BUFSIZE]; //get user input (messages)
-    if (scanf("%s", input) == EOF) {
+    if (fgets(input, BUFSIZE, stdin) == NULL) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
     } else {
@@ -128,7 +128,7 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     join_msg.header.status = TRUE;
     join_msg.header.about = m.header.about;
     join_msg.header.seq_num = currentSequenceNum;
-    sprintf(join_msg.content, "NOTICE %s joined on %s:%d", 
+    sprintf(join_msg.content, "NOTICE %s joined on %s:%d\n", 
       m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
 
     add_client(this_mach, m.header.about); //update clientlist

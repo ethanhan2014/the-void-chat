@@ -479,7 +479,7 @@ void* user_input(void *input) {
     }
 
     char user_in[BUFSIZE]; //get user input (messages)
-    if (scanf("%s", user_in) == EOF) {
+    if (fgets(user_in, BUFSIZE, stdin) == NULL) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       client_trigger = 1;
     } else {

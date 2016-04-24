@@ -190,7 +190,7 @@ void respond_to(int s, message* m, struct sockaddr_in source) {
 void print_message(message m) {
   if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER
       || m.header.msg_type == LEAVE) {
-    printf("%s\n", m.content);
+    printf("%s", m.content);
   } else {
     error("attempt to print a message type that is not allowed");
   }
