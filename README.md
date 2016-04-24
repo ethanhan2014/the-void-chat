@@ -143,7 +143,13 @@ This part will handle sending and receiving of all chat messages. When sending o
 
 ##### Message broadcasting, receiving and parsing (TODO)
 
-##### Fully ordered multicast protocol with a central sequencer (TODO)
+##### Fully ordered multicast protocol with a central sequencer
+
+The fully ordered multicast protocol works as follows. All messages arriving at the sequencer are assigned a sequeunce number as they arrive. The sequence number is assigned to each message based on the order it arrived in. It is incremented each time a message arrives.
+
+A separate thread is responsible for broadcasting these messages to the clients. The broadcast is also done in the order of arrival.
+
+Finally, all clients maintain state about what the current sequence number is. As messages arrive, clients look for the message in the arrived messages queue with the correct sequence number and print it. If the message does not exist, then the client waits for the message to arrive.
 
 ##### Failure Detection and Leader election
 
