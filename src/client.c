@@ -295,11 +295,7 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
     if (m.header.msg_type == NEW_USER) {
       add_client(this_mach, m.header.about);
     } else if (m.header.msg_type == LEAVE) {
-
-      pthread_mutex_lock(&group_list_lock);
       remove_client_mach(this_mach, m.header.about);
-      pthread_mutex_lock(&group_list_lock);
-
     } else if (m.header.msg_type == ELECTION_REQ) {
       hold_election = 1;
       pthread_mutex_unlock(&no_election_lock);
