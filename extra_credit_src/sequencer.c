@@ -382,7 +382,7 @@ void* sequencer_send_queue(void* input) {
       broadcast_message(important_queue->head->m);
       removeElement(important_queue, 0);
     }
-    if (sequencer_queue->length > 0) {
+    else if (sequencer_queue->length > 0) {
       broadcast_message(sequencer_queue->head->m);
       removeElement(sequencer_queue, 0);
     }
