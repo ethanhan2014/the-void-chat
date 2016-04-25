@@ -293,11 +293,7 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
 
     // above means we print out these messages, do any specific other operations
     if (m.header.msg_type == NEW_USER) {
-
-      pthread_mutex_lock(&group_list_lock);
       add_client(this_mach, m.header.about);
-      pthread_mutex_lock(&group_list_lock);
-
     } else if (m.header.msg_type == LEAVE) {
 
       pthread_mutex_lock(&group_list_lock);
