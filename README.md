@@ -179,10 +179,10 @@ This part handles sending and receiving of all chat messages. When a user types 
 
 #### Extra Credit
 
-* Encryption (malhk)
+* Encryption (malhk): Encryption is done by using a simple substitution cipher. Every character is replaced by another character. We add 7 to every ASCII value in order to encrypt the message. Decryption is done by subtracting 7. The encryption is done before any messages are sent from either the client or sequencer and decryption is done before the messages are printed to the screen.
 
 * Traffic Control (conoryan): the implementation for this involves tracking sequencer-side extra information. The sequencer now tracks in its client list extra information, specifically the difference in time between (up to) each of the last 10 sent messages from each client. It updates this information any time it receives a message. After updating this information, it also checks if that client has been sending messages too fast based on the average of those last 10 int values; if the average time between messages is below a certain threshold, messages are coming too fast, so the sequencer sends out a new type of message (CTRL_SLOW) to that client telling it to slow down. This message contains some value by which the client must now space its messages. Upon receiving such a message, the client waits for that much time before sending out a message from its message queue, and keeps doing this until the leader tells the client it is safe to send quickly again. The leader detects this by sending a CTRL_STOP message to the client once it finds that it has been behaving nicely (i.e., the avg of last 10 messages is above the desired threshold). This allows for messages to not flood the leader, as desired.
 
-* Message Priority (TODO)
+* Message Priority (malhk): in order to do message priority, we put high priority messages into a high priority queue and low priority messages into the low priority queue. High priority messages will all be sent out before low priority messages are sent out. Depending on the message type, messages that are more important (such as join requests, notifications, etc.) are put into a high priority queue while other messages are put into a low priority queue.
 
 ------
