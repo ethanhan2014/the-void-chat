@@ -13,8 +13,10 @@
 
 linkedList *client_queue;
 int latestSequenceNum;
+int sendSeqNum;
 
 linkedList* outgoing_queue;
+linkedList* temp_queue;
 
 //shared value - many threads react when this changes to TRUE
 //when it becomes 1, all threads end and the process dies
@@ -22,6 +24,11 @@ linkedList* outgoing_queue;
 int client_trigger;
 
 float slow_factor;
+
+//locks
+pthread_mutex_t election_lock; //lock up thread
+pthread_mutex_t no_election_lock; //lock up election thread
+int hold_election; //0-no election 1-holding election
 
 //kicks off client process
 void client_start();
@@ -61,3 +68,8 @@ void* check_hb(void *param);
 void* user_input(void *input);
 
 void* send_out_input(void* input);
+
+//Election methods
+void* elect_leader(void* input);
+
+int find_next_leader();

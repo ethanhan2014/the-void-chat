@@ -32,48 +32,37 @@ void sequencer_start() {
   sequencer_queue->length = 0;
   important_queue = (linkedList *) malloc(sizeof(linkedList));
   important_queue->length = 0;
+
   currentSequenceNum = 0;
 
+  sequencer_loop(s, hb);
+
+  // ** CLEANUP ** //
+  close(s);
+  close(hb);
+
+  /*node* curr = sequencer_queue->head;
+  node* next = NULL;
+  while (sequencer_queue->length > 0 && curr != NULL) {
+    next = curr->next;
+    free(curr);
+    curr = next;
+  }
+  free(sequencer_queue);*/
+}
+
+void sequencer_loop(int s, int hb) {
+  //initialization
+  sequencer_queue = (linkedList *) malloc(sizeof(linkedList));
+  sequencer_queue->length = 0;
+
+  //print out users
   printf("%s started a new chat, listening on %s:%d\n", this_mach->name, 
     this_mach->ipaddr, this_mach->portno);
   printf("Succeded, current users:\n");
   print_users(this_mach);
   printf("Waiting for other users to join...\n");
 
-  sequencer_loop(s, hb);
-  
-  // ** CLEANUP ** //
-  close(s);
-  close(hb);
-
-  int i;
-  for (i = 0; i < this_mach->chat_size; i++) {
-    client this = this_mach->others[i];
-
-    node* curr = this.msg_times->head;
-    node* next = NULL;
-    while (this.msg_times->length > 0 && curr != NULL) {
-      next = curr->next;
-      free(curr);
-      curr = next;
-    }
-    free(this.msg_times);
-    free(this.last_time);
-    free(this.slow_factor);
-  }
-
-  //clear queue if not empty
-  node* curr = sequencer_queue->head;
-  node* next = NULL;
-  while (curr != NULL) {
-    next = curr->next;
-    free(curr);
-    curr = next;
-  }
-  free(sequencer_queue);
-}
-
-void sequencer_loop(int s, int hb) {
   //kick off a thread that is listening in parallel
   thread_params params;
   params.socket = s;
@@ -106,8 +95,9 @@ void sequencer_loop(int s, int hb) {
   //loop waiting for user input
   int done = FALSE;
   while (!done) {
-    char input[BUFSIZE]; //get user input (messages)
-    if (scanf("%s", input) == EOF) {
+    char* input = (char*)malloc(BUFSIZE * sizeof(char)); //get user input (messages)
+    size_t size = (size_t)BUFSIZE;
+    if (getline(&input, &size, stdin) == -1) {
       //on ctrl-d (EOF), kill this program instead of interpreting input
       done = TRUE;
     } else {
@@ -120,13 +110,17 @@ void sequencer_loop(int s, int hb) {
       header.seq_num = currentSequenceNum;
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", this_mach->name, input);
+
       int n = 0;
       for (n = 0; n < BUFSIZE; n++) {
         text_msg.content[n] += 7;
       }
+
       addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
       currentSequenceNum++;
     }
+
+    free(input);
   }
 }
 
@@ -139,7 +133,7 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     join_msg.header.status = TRUE;
     join_msg.header.about = m.header.about;
     join_msg.header.seq_num = currentSequenceNum;
-    sprintf(join_msg.content, "NOTICE %s joined on %s:%d", 
+    sprintf(join_msg.content, "NOTICE %s joined on %s:%d\n", 
       m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
     int n = 0;
     for (n = 0; n < BUFSIZE; n++) {
@@ -155,7 +149,7 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     response.header.timestamp = (int)time(0);
     response.header.msg_type = JOIN_RES;
     response.header.status = TRUE;
-    this_mach->current_sequence_num = currentSequenceNum;
+    response.header.seq_num = currentSequenceNum;
     response.header.about = *this_mach;
     respond_to(s, &response, source);
   } else if (m.header.msg_type == MSG_REQ) {
@@ -178,14 +172,15 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     text_msg.header.timestamp = (int)time(0);
     text_msg.header.msg_type = MSG_REQ;
     text_msg.header.status = TRUE;
-    text_msg.header.about = *this_mach;
+    text_msg.header.about = m.header.about;
+    text_msg.header.sender_seq = m.header.sender_seq;
     text_msg.header.seq_num = currentSequenceNum;
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
+
     n = 0;
     for (n = 0; n < BUFSIZE; n++) {
       text_msg.content[n] += 7;
     }
-    
 
     //add to queue to send out
     addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
@@ -329,8 +324,7 @@ void traffic_control(message m) {
     //send a slow down message when avg is too low
     message out;
     if (avg < CTRL_THRESH && *this.slow_factor <= 0.001f) {
-      *this.slow_factor = (1.0f/(CTRL_THRESH - avg) > 3.0f ? 3.0f 
-        : 1.0f/(CTRL_THRESH - avg));
+      *this.slow_factor = 3.0f;
       //make slow down message
       msg_header header;
       header.timestamp = (int)time(0);
@@ -436,7 +430,7 @@ void* send_hb(void *param)
           leave_notice.header.status = TRUE;
           leave_notice.header.about = *this_mach;
           leave_notice.header.seq_num = currentSequenceNum;
-          sprintf(leave_notice.content, "NOTICE %s left the chat or crashed",
+          sprintf(leave_notice.content, "NOTICE %s left the chat or crashed\n",
             this->name);
           int n = 0;
           for (n = 0; n < BUFSIZE; n++) {

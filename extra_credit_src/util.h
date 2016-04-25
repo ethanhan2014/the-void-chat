@@ -34,6 +34,8 @@
 //traffic control
 #define NUM_TIMES_TRACKED 10
 #define CTRL_THRESH 1.5
+#define CTRL_SLOW 12
+#define CTRL_STOP 13
 
 
 // *** STRUCT FORMATS *** //
@@ -64,7 +66,6 @@ typedef struct machine_info {
   int chat_size;          // number of other chatters
   char host_ip[BUFSIZE];  // current leader's ip
   int host_port;// current leader's port
-  int current_sequence_num;
 } machine_info;
 
 
@@ -74,6 +75,7 @@ typedef struct msg_header {
   int msg_type;           // response or chat message or leader election request
   int status;             //indicate whether it's ready to be delivered
   machine_info about;     // information about sender machine
+  int sender_seq;         // number assigned by original sender to ensure delivery
 } msg_header;
 
 typedef struct messages {
@@ -100,9 +102,10 @@ typedef struct thread_params {
 } thread_params;
 
 
-// WE NEED THIS VAR REGARDLESS OF IF WE ARE CLIENT OR SEQUENCER //
-machine_info* this_mach;
+// GLOBAL VARIABLES //
 
+machine_info* this_mach; //information about itself
+thread_params sockets;   //store created sockets
 
 // *** FUNCTIONS *** //
 //prints out a formatted list of users and their ip addresses

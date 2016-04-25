@@ -59,7 +59,6 @@ void set_machine_info(char const *name) {
   strcpy(this_mach->name, name);
   this_mach->isLeader = FALSE; //(for now)
   this_mach->chat_size = 0;
-  this_mach->current_sequence_num = 0; //(for now)
 }
 
 int open_listener_socket(machine_info* mach) {
@@ -114,6 +113,7 @@ void add_client(machine_info* add_to, machine_info add) {
     new.isLeader = add.isLeader;
     new.send_count = 0;
     new.recv_count = 0;
+
     new.msg_times = (linkedList*)malloc(sizeof(linkedList));
     new.msg_times->length = 0;
     new.last_time = (int*)malloc(sizeof(int));
@@ -193,7 +193,7 @@ void remove_leader(machine_info* update) {
       free(this.msg_times);
       free(this.last_time);
       free(this.slow_factor);
-
+      
       // move all others up by one; for loop exits after this while
       while (i < update->chat_size) {
         update->others[i] = update->others[i+1];
@@ -220,7 +220,7 @@ void respond_to(int s, message* m, struct sockaddr_in source) {
 void print_message(message m) {
   if (m.header.msg_type == MSG_REQ || m.header.msg_type == NEW_USER
       || m.header.msg_type == LEAVE) {
-    printf("%s\n", m.content);
+    printf("%s", m.content);
   } else {
     error("attempt to print a message type that is not allowed");
   }
