@@ -519,7 +519,7 @@ void* send_out_input(void* input) {
 
       pthread_mutex_lock(&msg_queue_lock);
       addElement(temp_queue, 0, "NO", this->m);
-      pthread_unmutex_lock(&msg_queue_lock);
+      pthread_mutex_unlock(&msg_queue_lock);
 
       msg_request(this_mach, this->m);
 
