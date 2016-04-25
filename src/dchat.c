@@ -38,7 +38,6 @@ int main(int argc, char const *argv[]) {
   client_trigger = 0;
 
   pthread_mutex_init(&msg_queue_lock, NULL);
-  pthread_mutex_init(&group_list_lock, NULL);
 
   //start a new chat or figure out which one to join; INITIAL iteration
   if (argc == 2) {
