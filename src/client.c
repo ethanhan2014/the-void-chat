@@ -272,7 +272,10 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       exit(1);
     }
   } else {
+
+    pthread_mutex_lock(&msg_queue_lock);
     addElement(client_queue, m.header.seq_num, "", m);
+    pthread_mutex_unlock(&msg_queue_lock);
 
     // ack the message and let sequencer know it was received
     message ack;
@@ -290,9 +293,17 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
 
     // above means we print out these messages, do any specific other operations
     if (m.header.msg_type == NEW_USER) {
+
+      pthread_mutex_lock(&group_list_lock);
       add_client(this_mach, m.header.about);
+      pthread_mutex_lock(&group_list_lock);
+
     } else if (m.header.msg_type == LEAVE) {
+
+      pthread_mutex_lock(&group_list_lock);
       remove_client_mach(this_mach, m.header.about);
+      pthread_mutex_lock(&group_list_lock);
+
     } else if (m.header.msg_type == ELECTION_REQ) {
       hold_election = 1;
       pthread_mutex_unlock(&no_election_lock);
@@ -305,8 +316,6 @@ void parse_incoming_cl(message m, struct sockaddr_in source, int s) {
       //continue all threads
       hold_election = 0;
 
-      pthread_mutex_unlock(&election_lock);
-      pthread_mutex_unlock(&election_lock);
       pthread_mutex_unlock(&election_lock);
       pthread_mutex_unlock(&election_lock);
       pthread_mutex_unlock(&election_lock);
@@ -358,10 +367,6 @@ void* sortAndPrint() {
   pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL); //allows instant cancellation
 
   while (!client_trigger) {
-    while(hold_election)
-    {
-      pthread_mutex_lock(&election_lock);
-    }
 
     //now find the next one we want to print
     int i = 0;
@@ -383,20 +388,27 @@ void* sortAndPrint() {
               && this_mach->isLeader == current->m.header.about.isLeader
               && current->m.header.sender_seq == outgoing_msg->m.header.sender_seq) {
             //we sent this one, and we will print it! remove from our sent queue
+            pthread_mutex_lock(&msg_queue_lock);
             removeElement(temp_queue, n);
+            pthread_mutex_unlock(&msg_queue_lock);
             n = temp_queue->length;
           }
           else if (outgoing_msg->v > 1000) {
+            pthread_mutex_lock(&msg_queue_lock);
             addElement(outgoing_queue, 0, "NO", outgoing_msg->m);
             removeElement(temp_queue, n);
+            pthread_mutex_unlock(&msg_queue_lock);
             n = temp_queue->length;
           }
         }
 
         //print it regardless of it we sent it initially
         print_message(current->m);
+
+        pthread_mutex_lock(&msg_queue_lock);
         removeElement(client_queue, i);
         latestSequenceNum++;
+        pthread_mutex_unlock(&msg_queue_lock);
 
         i = client_queue->length;
       }
@@ -471,11 +483,6 @@ void* user_input(void *input) {
 
   while(!client_trigger) {
 
-    while(hold_election)
-    {
-      pthread_mutex_lock(&election_lock);
-    }
-
     char* user_in = (char*)malloc(BUFSIZE * sizeof(char)); //get user input (messages)
     size_t size = (size_t)BUFSIZE;
     if (getline(&user_in, &size, stdin) == -1) {
@@ -492,7 +499,9 @@ void* user_input(void *input) {
       text_msg.header = header;
       strcpy(text_msg.content, user_in);
 
+      pthread_mutex_lock(&msg_queue_lock);
       addElement(outgoing_queue, 0, "NO", text_msg);
+      pthread_mutex_unlock(&msg_queue_lock);
     }
 
     free(user_in);
@@ -508,9 +517,15 @@ void* send_out_input(void* input) {
       this->m.header.sender_seq = sendSeqNum;
       sendSeqNum++;
 
+      pthread_mutex_lock(&msg_queue_lock);
       addElement(temp_queue, 0, "NO", this->m);
+      pthread_unmutex_lock(&msg_queue_lock);
+
       msg_request(this_mach, this->m);
+
+      pthread_mutex_lock(&msg_queue_lock);
       removeElement(outgoing_queue, 0);
+      pthread_mutex_unlock(&msg_queue_lock);
     }
   }
 
@@ -620,8 +635,6 @@ void* elect_leader(void* input)
           //release all locks
           hold_election = 0;
 
-          pthread_mutex_unlock(&election_lock);
-          pthread_mutex_unlock(&election_lock);
           pthread_mutex_unlock(&election_lock);
           pthread_mutex_unlock(&election_lock);
           pthread_mutex_unlock(&election_lock);

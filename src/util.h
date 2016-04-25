@@ -97,6 +97,9 @@ typedef struct thread_params {
 machine_info* this_mach; //information about itself
 thread_params sockets;   //store created sockets
 
+pthread_mutex_t msg_queue_lock;
+pthread_mutex_t group_list_lock;
+
 // *** FUNCTIONS *** //
 //prints out a formatted list of users and their ip addresses
 void print_users(machine_info* mach);

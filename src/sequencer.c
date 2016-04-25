@@ -106,8 +106,10 @@ void sequencer_loop(int s, int hb) {
       text_msg.header = header;
       sprintf(text_msg.content, "%s:: %s", this_mach->name, input);
 
+      pthread_mutex_lock(&msg_queue_lock);
       addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
       currentSequenceNum++;
+      pthread_mutex_unlock(&msg_queue_lock);
     }
 
     free(input);
@@ -126,9 +128,14 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     sprintf(join_msg.content, "NOTICE %s joined on %s:%d\n", 
       m.header.about.name, m.header.about.ipaddr, m.header.about.portno);
 
+    pthread_mutex_lock(&group_list_lock);
     add_client(this_mach, m.header.about); //update clientlist
+    pthread_mutex_unlock(&group_list_lock);
+
+    pthread_mutex_lock(&msg_queue_lock);
     addElement(sequencer_queue, currentSequenceNum, "NO", join_msg); //update msgs
     currentSequenceNum++;
+    pthread_mutex_unlock(&msg_queue_lock);
 
     //respond to original client
     message response;
@@ -160,8 +167,10 @@ void parse_incoming_seq(message m, struct sockaddr_in source, int s) {
     sprintf(text_msg.content, "%s:: %s", m.header.about.name, m.content);
 
     //add to queue to send out
+    pthread_mutex_lock(&msg_queue_lock);
     addElement(sequencer_queue, currentSequenceNum, "NO", text_msg);
     currentSequenceNum++;
+    pthread_mutex_unlock(&msg_queue_lock);
   }
 }
 
@@ -255,7 +264,9 @@ void* sequencer_send_queue(void* input) {
   while (1) {
     if (sequencer_queue->length > 0) {
       broadcast_message(sequencer_queue->head->m);
+      pthread_mutex_lock(&msg_queue_lock);
       removeElement(sequencer_queue, 0);
+      pthread_mutex_unlock(&msg_queue_lock);
     }
   }
 
@@ -303,11 +314,16 @@ void* send_hb(void *param)
           leave_notice.header.seq_num = currentSequenceNum;
           sprintf(leave_notice.content, "NOTICE %s left the chat or crashed\n",
             this->name);
+
+          pthread_mutex_lock(&msg_queue_lock);
           addElement(sequencer_queue, currentSequenceNum, "NO", leave_notice);
           currentSequenceNum++;
+          pthread_mutex_unlock(&msg_queue_lock);
 
           //then remove the member
+          pthread_mutex_lock(&group_list_lock);
           remove_client_cl(this_mach, *this);
+          pthread_mutex_unlock(&group_list_lock);
         }
       }
     }
